@@ -63,6 +63,7 @@ void m61_free(void *ptr, const char *file, int line) {
     }
     else {
         stat61.nactive--;
+        stat61.active_size -= sizeof(ptr);
     }
 
     base_free(ptr);

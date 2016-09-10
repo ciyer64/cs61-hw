@@ -12,8 +12,22 @@
 ///    either return NULL or a unique, newly-allocated pointer value.
 ///    The allocation request was at location `file`:`line`.
 
+static struct m61_statistics stat61 = {
+    0,0,0,0,0,0,NULL,NULL
+};
+
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
+    if (sz==0) {
+        return NULL;
+    }
+    else {
+        stat61.nactive++;
+        stat61.active_size += sz;
+        stat61.ntotal++;
+        stat61.total_size += sz;
+
+    }
     // Your code here.
     return base_malloc(sz);
 }
@@ -27,10 +41,14 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 
 void m61_free(void *ptr, const char *file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
+    // Your code here.
     if (ptr == NULL) {
         return;
     }
-    // Your code here.
+    else {
+        stat61.nactive--;
+    }
+
     base_free(ptr);
 }
 
@@ -79,6 +97,7 @@ void m61_getstatistics(struct m61_statistics* stats) {
     // Stub: set all statistics to enormous numbers
     memset(stats, 255, sizeof(struct m61_statistics));
     // Your code here.
+    *stats = stat61;
 }
 
 

@@ -32,10 +32,14 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.ntotal++;
         stat61.total_size += sz;
 
-        if (stat61.heap_min > ptr) {
+        if (stat61.heap_min == NULL && stat61.heap_max == NULL) {
+            stat61.heap_min = ptr;
+            stat61.heap_max = ptr + sz;
+        }
+        else if (stat61.heap_min > ptr) {
             stat61.heap_min = ptr;
         }
-        if (stat61.heap_max < ptr + sz) {
+        else if (stat61.heap_max < ptr + sz) {
             stat61.heap_max = ptr + sz;
         }
 

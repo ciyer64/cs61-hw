@@ -27,6 +27,9 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 
 void m61_free(void *ptr, const char *file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
+    if (ptr == NULL) {
+        return;
+    }
     // Your code here.
     base_free(ptr);
 }

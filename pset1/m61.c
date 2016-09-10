@@ -21,15 +21,27 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     if (sz==0) {
         return NULL;
     }
+    char* ptr = base_malloc(sz);
+    if (!ptr) {
+        stat61.nfail++;
+        stat61.fail_size += sz;
+    }
     else {
         stat61.nactive++;
         stat61.active_size += sz;
         stat61.ntotal++;
         stat61.total_size += sz;
 
+        if (stat61.heap_min > ptr) {
+            stat61.heap_min = ptr;
+        }
+        if (stat61.heap_max < ptr + sz) {
+            stat61.heap_max = ptr + sz;
+        }
+
     }
     // Your code here.
-    return base_malloc(sz);
+    return ptr;
 }
 
 

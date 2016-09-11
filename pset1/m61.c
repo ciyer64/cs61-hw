@@ -13,39 +13,66 @@
 ///    The allocation request was at location `file`:`line`.
 
 static struct m61_statistics stat61 = {
-    0,0,0,0,0,0,NULL,NULL
+    0, 0, 0, 0, 0, 0, NULL, NULL
 };
+
+typedef struct meta61 {
+    size_t size;
+    char* pntr;
+    struct meta61* prev;
+    struct meta61* next;
+} meta61;
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
+    
+    size_t max_size = (size_t) -1;
+    max_size -= sizeof(meta61);
+
+    if (sz > max_size) {
+        stat61.nfail++;
+        stat61.fail_size += sz;
+        return NULL;
+    }
+
     if (sz==0) {
         return NULL;
     }
-    char* ptr = base_malloc(sz);
+
+    //char* ptr = base_malloc(sz);
+    meta61 *ptr = malloc(sz + sizeof(meta61));
+
     if (!ptr) {
         stat61.nfail++;
         stat61.fail_size += sz;
+        return NULL;
     }
+
     else {
         stat61.nactive++;
         stat61.active_size += sz;
         stat61.ntotal++;
         stat61.total_size += sz;
 
+        meta61 meta;
+        meta.size = sz;
+        memcpy(ptr,&meta, sizeof(meta61));
+        meta.pntr = (char*) (ptr + sizeof(meta61));
+
         if (stat61.heap_min == NULL && stat61.heap_max == NULL) {
-            stat61.heap_min = ptr;
-            stat61.heap_max = ptr + sz;
+            stat61.heap_min = meta.pntr;
+            stat61.heap_max = meta.pntr + sz;
         }
-        else if (stat61.heap_min > ptr) {
-            stat61.heap_min = ptr;
+        else if (stat61.heap_min > meta.pntr) {
+            stat61.heap_min = meta.pntr;
         }
-        else if (stat61.heap_max < ptr + sz) {
-            stat61.heap_max = ptr + sz;
+        else if (stat61.heap_max < meta.pntr + sz) {
+            stat61.heap_max = meta.pntr + sz;
         }
 
     }
     // Your code here.
-    return ptr;
+    return ptr + sizeof(meta61);
 }
 
 
@@ -61,12 +88,13 @@ void m61_free(void *ptr, const char *file, int line) {
     if (ptr == NULL) {
         return;
     }
-    else {
-        stat61.nactive--;
-        stat61.active_size -= sizeof(ptr);
-    }
+    stat61.nactive--;
+    // base_free(ptr);
 
-    base_free(ptr);
+    meta61* mptr = ptr;
+    meta61* meta = mptr - sizeof(meta61);
+    stat61.active_size -= meta->size;
+    free(meta);
 }
 
 

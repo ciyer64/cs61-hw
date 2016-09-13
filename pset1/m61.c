@@ -105,14 +105,14 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         // Copy the data from `ptr` into `new_ptr`.
         // To do that, we must figure out the size of allocation `ptr`.
         // Your code here (to fix test012).
-        meta61 *itismeta = ptr;
-        meta61 *meta = itismeta - sizeof(meta61);	// "recreates" the struct so it can be used here
+        meta61 *mptr = ptr;
+        meta61 *meta = mptr - sizeof(meta61);	// "recreates" the struct so it can be used here
         meta61 new_meta;
-	size_t old_sz = meta -> size;
-         if (old_sz < sz)
-             memcpy(new_ptr, ptr, old_sz);
-         else
-             memcpy(new_ptr, ptr, sz);
+        size_t old_sz = meta -> size;
+        if (old_sz < sz)
+            memcpy(new_ptr, ptr, old_sz);
+        else
+            memcpy(new_ptr, ptr, sz);
 
         //new_meta.size = meta->size;
         //new_ptr -= sizeof(meta61);
@@ -120,7 +120,7 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         //new_ptr += sizeof(meta61);
     }
     m61_free(ptr, file, line);
-    return new_ptr;
+    return (void*) new_ptr;
 }
 
 

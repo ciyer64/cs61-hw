@@ -47,7 +47,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.active_size += sz;
         stat61.ntotal++;
         stat61.total_size += sz;
-        meta61 meta;		// declare struct?
+        meta61 meta;
         meta.size = sz;		// set size equal to size of memory to be stored
         memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
         meta.pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
@@ -109,9 +109,7 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         // Copy the data from `ptr` into `new_ptr`.
         // To do that, we must figure out the size of allocation `ptr`.
         // Your code here (to fix test012).
-        meta61 *mptr = ptr;
-        meta61 *meta = mptr - sizeof(meta61);	// "recreates" the struct so it can be used here
-        meta61 new_meta;
+        meta61 *meta = (meta61*) ptr - sizeof(meta61);	// "recreates" the struct so it can be used here
         size_t old_sz = meta -> size;
         if (old_sz < sz)
             memcpy(new_ptr, ptr, old_sz);
@@ -139,7 +137,7 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
     // Your code here (to fix test014).
     size_t total_sz = nmemb*sz;
     void* ptr = NULL;
-    if (total_sz >= nmemb) {
+    if (total_sz >= nmemb) { //ensure no overflow
         ptr = m61_malloc(nmemb * sz, file, line);
     }
     if (ptr) {

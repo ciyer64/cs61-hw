@@ -4,7 +4,7 @@
 
 int main() {
     for (int i = 0; i < 10; ++i)
-        (void) malloc(1);
+        (void) malloc(1);	// allocates a single byte 10 times
     m61_printstatistics();
 }
 

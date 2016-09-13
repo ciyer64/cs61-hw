@@ -47,19 +47,19 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.active_size += sz;
         stat61.ntotal++;
         stat61.total_size += sz;
-        meta61 meta;
-        meta.size = sz;
-        memcpy(ptr,&meta, sizeof(meta61));
-        meta.pntr = (char*) (ptr + sizeof(meta61));
-        if (stat61.heap_min == NULL && stat61.heap_max == NULL) {
-            stat61.heap_min = meta.pntr;
-            stat61.heap_max = meta.pntr + sz;
+        meta61 meta;		// declare struct?
+        meta.size = sz;		// set size equal to size of memory to be stored
+        memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
+        meta.pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
+        if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
+            stat61.heap_min = meta.pntr;				// set min
+            stat61.heap_max = meta.pntr + sz;				// set max
         }
-        else if (stat61.heap_min > meta.pntr) {
-            stat61.heap_min = meta.pntr;
+        else if (stat61.heap_min > meta.pntr) {				// if current min greater than ptr
+            stat61.heap_min = meta.pntr;				// set min to ptr
         }
-        else if (stat61.heap_max < meta.pntr + sz) {
-            stat61.heap_max = meta.pntr + sz;
+        else if (stat61.heap_max < meta.pntr + sz) {			// if current max less than ptr
+            stat61.heap_max = meta.pntr + sz;				// set max to ptr
         }
     }
     // Your code here.
@@ -101,16 +101,23 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
     if (sz)
         new_ptr = m61_malloc(sz, file, line);
     if (ptr && new_ptr) {
+	
         // Copy the data from `ptr` into `new_ptr`.
         // To do that, we must figure out the size of allocation `ptr`.
         // Your code here (to fix test012).
         meta61 *itismeta = ptr;
-        meta61 *meta = itismeta - sizeof(meta61);
+        meta61 *meta = itismeta - sizeof(meta61);	// "recreates" the struct so it can be used here
         meta61 new_meta;
-        new_meta.size = meta->size;
-        new_ptr -= sizeof(meta61);
-        memcpy(new_ptr,&new_meta,sizeof(meta61));
-        new_ptr += sizeof(meta61);
+	size_t old_sz = meta -> size;
+         if (old_sz < sz)
+             memcpy(new_ptr, ptr, old_sz);
+         else
+             memcpy(new_ptr, ptr, sz);
+
+        //new_meta.size = meta->size;
+        //new_ptr -= sizeof(meta61);
+        //memcpy(new_ptr,&new_meta,sizeof(meta61));
+        //new_ptr += sizeof(meta61);
     }
     m61_free(ptr, file, line);
     return new_ptr;

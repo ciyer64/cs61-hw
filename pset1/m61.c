@@ -79,6 +79,10 @@ void m61_free(void *ptr, const char *file, int line) {
     if (ptr == NULL) {
         return;
     }
+    if (stat61.active_size == 0) {
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap",file, line, ptr);
+        abort();
+    }
     stat61.nactive--;
     // base_free(ptr);
 
@@ -133,9 +137,18 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
 
 void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
     // Your code here (to fix test014).
-    void* ptr = m61_malloc(nmemb * sz, file, line);
-    if (ptr)
+    size_t total_sz = nmemb*sz;
+    void* ptr = NULL;
+    if (total_sz >= nmemb) {
+        ptr = m61_malloc(nmemb * sz, file, line);
+    }
+    if (ptr) {
         memset(ptr, 0, nmemb * sz);
+    }
+    else {
+        stat61.nfail++;
+        stat61.fail_size += sz;
+    }
     return ptr;
 }
 

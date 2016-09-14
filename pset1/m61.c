@@ -108,7 +108,6 @@ void m61_free(void *ptr, const char *file, int line) {
     }
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
         printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
-
         abort();
     }
     // if (mptr->state != ALLOC) {
@@ -146,10 +145,21 @@ void m61_free(void *ptr, const char *file, int line) {
         printf("MEMORY BUG %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
     }
-    // if (mptr->state != ALLOC) {
-    //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
-    //     abort();
-    // }
+    if (mptr->state != ALLOC) {
+        meta61* tmp = head;
+        while (tmp != NULL){
+            if (tmp == ptr) {
+                size_t offset = ((size_t) ptr - (size_t) tmp) - sizeof(meta61);
+                printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n  %s:%d: %p: %p is %d bytes inside a %zu byte region allocated here",file, line, ptr,file,line,tmp,ptr,offset,tmp->size);
+                abort();
+            }
+            tmp = tmp->next;
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
+        abort();
+        }
+        // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);        
+        abort();
+    }
     stat61.nactive--;
     stat61.active_size -= mptr->size;
     mptr->state = FREE;
@@ -181,10 +191,6 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         else
             memcpy(new_ptr, ptr, sz);
 
-        //new_meta.size = meta->size;
-        //new_ptr -= sizeof(meta61);
-        //memcpy(new_ptr,&new_meta,sizeof(meta61));
-        //new_ptr += sizeof(meta61);
     }
     m61_free(ptr, file, line);
     return (void*) new_ptr;

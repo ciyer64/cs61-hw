@@ -6,11 +6,8 @@
 #include <inttypes.h>
 #include <assert.h>
 
-/// m61_malloc(sz, file, line)
-///    Return a pointer to `sz` bytes of newly-allocated dynamic memory.
-///    The memory is not initialized. If `sz == 0`, then m61_malloc may
-///    either return NULL or a unique, newly-allocated pointer value.
-///    The allocation request was at location `file`:`line`.
+#define FREE ((char*) 0xF213E3ED)
+#define ALLOC ((char*) 0xA110C47D)
 
 static struct m61_statistics stat61 = {
     0, 0, 0, 0, 0, 0, NULL, NULL
@@ -21,7 +18,14 @@ typedef struct meta61 {
     char* pntr;
     struct meta61* prev;
     struct meta61* next;
+    char* state;
 } meta61;
+
+/// m61_malloc(sz, file, line)
+///    Return a pointer to `sz` bytes of newly-allocated dynamic memory.
+///    The memory is not initialized. If `sz == 0`, then m61_malloc may
+///    either return NULL or a unique, newly-allocated pointer value.
+///    The allocation request was at location `file`:`line`.
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
@@ -42,25 +46,25 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.fail_size += sz;
         return NULL;
     }
-    else {
-        stat61.nactive++;
-        stat61.active_size += sz;
-        stat61.ntotal++;
-        stat61.total_size += sz;
-        meta61 meta;
-        meta.size = sz;		// set size equal to size of memory to be stored
-        memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
-        meta.pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
-        if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
-            stat61.heap_min = meta.pntr;				// set min
-            stat61.heap_max = meta.pntr + sz;				// set max
-        }
-        else if (stat61.heap_min > meta.pntr) {				// if current min greater than ptr
-            stat61.heap_min = meta.pntr;				// set min to ptr
-        }
-        else if (stat61.heap_max < meta.pntr + sz) {			// if current max less than ptr
-            stat61.heap_max = meta.pntr + sz;				// set max to ptr
-        }
+    stat61.nactive++;
+    stat61.active_size += sz;
+    stat61.ntotal++;
+    stat61.total_size += sz;
+
+    meta61 meta;
+    meta.size = sz;		// set size equal to size of memory to be stored
+    memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
+    meta.pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
+    meta.state = ALLOC;
+    if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
+        stat61.heap_min = meta.pntr;				// set min
+        stat61.heap_max = meta.pntr + sz;				// set max
+    }
+    else if (stat61.heap_min > meta.pntr) {				// if current min greater than ptr
+        stat61.heap_min = meta.pntr;				// set min to ptr
+    }
+    else if (stat61.heap_max < meta.pntr + sz) {			// if current max less than ptr
+        stat61.heap_max = meta.pntr + sz;				// set max to ptr
     }
     // Your code here.
     return (void*) (ptr + sizeof(meta61));
@@ -79,17 +83,28 @@ void m61_free(void *ptr, const char *file, int line) {
     if (ptr == NULL) {
         return;
     }
-    if (stat61.active_size == 0) {
+    if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
         printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap",file, line, ptr);
         abort();
     }
+    // if (stat61.active_size == 0) {
+    //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap",file, line, ptr);
+    //     abort();
+    // }
+    meta61* mptr = (meta61*) ptr - sizeof(meta61);
+    if (mptr->state == FREE) {
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p",file, line, ptr);
+        abort();
+    }
+    if (mptr->state != ALLOC) {
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated",file, line, ptr);
+        abort();
+    }
     stat61.nactive--;
+    stat61.active_size -= mptr->size;
+    mptr->state = FREE;
+    base_free(mptr);
     // base_free(ptr);
-
-    meta61* mptr = ptr;
-    meta61* meta = mptr - sizeof(meta61);
-    stat61.active_size -= meta->size;
-    free(meta);
 }
 
 

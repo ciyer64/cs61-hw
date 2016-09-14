@@ -21,6 +21,27 @@ typedef struct meta61 {
     char* state;
 } meta61;
 
+
+meta61* head = NULL;
+
+// from C patterns page of cs61 WIKI
+void insert_head(meta61* n) {
+    n->next = head;
+    n->prev = NULL;
+    if (head)
+        head->prev = n;
+    head = n;
+}
+
+void remove_node(meta61* n) {
+    if (n->next)
+        n->next->prev = n->prev;
+    if (n->prev)
+        n->prev->next = n->next;
+    else
+        head = n->next;
+}
+
 /// m61_malloc(sz, file, line)
 ///    Return a pointer to `sz` bytes of newly-allocated dynamic memory.
 ///    The memory is not initialized. If `sz == 0`, then m61_malloc may
@@ -51,20 +72,23 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     stat61.ntotal++;
     stat61.total_size += sz;
 
-    meta61 meta;
-    meta.size = sz;		// set size equal to size of memory to be stored
-    memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
-    meta.pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
-    meta.state = ALLOC;
+    //meta61 meta;
+    ptr->size = sz;		// set size equal to size of memory to be stored
+    //memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
+    ptr->pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
+    ptr->state = ALLOC;
+
+    //******* add to linked list with insert_node function defined above ******************
+
     if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
-        stat61.heap_min = meta.pntr;				// set min
-        stat61.heap_max = meta.pntr + sz;				// set max
+        stat61.heap_min = ptr->pntr;				// set min
+        stat61.heap_max = ptr->pntr + sz;				// set max
     }
-    else if (stat61.heap_min > meta.pntr) {				// if current min greater than ptr
-        stat61.heap_min = meta.pntr;				// set min to ptr
+    else if (stat61.heap_min > ptr->pntr) {				// if current min greater than ptr
+        stat61.heap_min = ptr->pntr;				// set min to ptr
     }
-    else if (stat61.heap_max < meta.pntr + sz) {			// if current max less than ptr
-        stat61.heap_max = meta.pntr + sz;				// set max to ptr
+    else if (stat61.heap_max < ptr->pntr + sz) {			// if current max less than ptr
+        stat61.heap_max = ptr->pntr + sz;				// set max to ptr
     }
     // Your code here.
     return (void*) (ptr + sizeof(meta61));
@@ -84,20 +108,47 @@ void m61_free(void *ptr, const char *file, int line) {
         return;
     }
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap",file, line, ptr);
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
+
         abort();
     }
-    // if (stat61.active_size == 0) {
-    //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap",file, line, ptr);
+    // if (mptr->state != ALLOC) {
+
+        // case: specifically, user ptr within allocation
+
+        /*
+        meta61* tmp = head;
+
+        while(tmp != NULL){
+
+            //tmp stuff
+
+            tmp = tmp->next;
+        }
+
+        [ meta     |usr pointer   [evil pointer]    user alloc stuff (sz sized) ]
+        (char*)evil pointer - (user ptr)
+
+
+        IF WITHIN REGION PRINT SECOND LINE OF ERROR ... 100 bytes into 2001 byte rgion etc..
+        IF NOT IN ANY REGION GIVE JUST THE ONE LINE WARNING
+
+        */
+
+    //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
+
+
+
+
     //     abort();
     // }
     meta61* mptr = (meta61*) ptr - sizeof(meta61);
     if (mptr->state == FREE) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p",file, line, ptr);
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
     }
     if (mptr->state != ALLOC) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated",file, line, ptr);
+        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
         abort();
     }
     stat61.nactive--;

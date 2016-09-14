@@ -72,13 +72,12 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     stat61.ntotal++;
     stat61.total_size += sz;
 
-    //meta61 meta;
     ptr->size = sz;		// set size equal to size of memory to be stored
-    //memcpy(ptr,&meta, sizeof(meta61));		// copy to ptr the info from meta
     ptr->pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
     ptr->state = ALLOC;
 
-    //******* add to linked list with insert_node function defined above ******************
+    //******* add to linked list with insert_head function defined above ******************
+    insert_head(ptr);
 
     if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
         stat61.heap_min = ptr->pntr;				// set min
@@ -147,10 +146,10 @@ void m61_free(void *ptr, const char *file, int line) {
         printf("MEMORY BUG %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
     }
-    if (mptr->state != ALLOC) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
-        abort();
-    }
+    // if (mptr->state != ALLOC) {
+    //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
+    //     abort();
+    // }
     stat61.nactive--;
     stat61.active_size -= mptr->size;
     mptr->state = FREE;

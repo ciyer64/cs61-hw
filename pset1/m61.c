@@ -12,6 +12,7 @@
 ///    either return NULL or a unique, newly-allocated pointer value.
 ///    The allocation request was at location `file`:`line`.
 
+
 static struct m61_statistics stat61 = {
     0, 0, 0, 0, 0, 0, NULL, NULL
 };
@@ -76,20 +77,28 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 void m61_free(void *ptr, const char *file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
     // Your code here.
-    if (ptr == NULL) {
-        return;
-    }
-    if (stat61.active_size == 0) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap",file, line, ptr);
-        abort();
-    }
-    stat61.nactive--;
-    // base_free(ptr);
 
-    meta61* mptr = ptr;
-    meta61* meta = mptr - sizeof(meta61);
-    stat61.active_size -= meta->size;
-    free(meta);
+
+		if (ptr == NULL) {
+		    return;
+		}
+
+		if ((char*) ptr < (char*) stat61.heap_min || (char*) ptr > (char*) stat61.heap_max) {
+			printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
+		    abort();
+		}
+
+		if (stat61.active_size == 0) {
+		    printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
+		    abort();
+		}
+		stat61.nactive--;
+		// base_free(ptr);
+
+		meta61* mptr = ptr;
+		meta61* meta = mptr - sizeof(meta61);
+		stat61.active_size -= meta->size;
+		free(meta);
 }
 
 
@@ -109,7 +118,7 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         // Copy the data from `ptr` into `new_ptr`.
         // To do that, we must figure out the size of allocation `ptr`.
         // Your code here (to fix test012).
-        meta61 *meta = (meta61*) ptr - sizeof(meta61);	// "recreates" the struct so it can be used here
+        meta61 *meta = (meta61*) ptr - sizeof(meta61);	// casts out of void* and copies the meta struct so it 								// can be used here
         size_t old_sz = meta -> size;
         if (old_sz < sz)
             memcpy(new_ptr, ptr, old_sz);
@@ -148,6 +157,8 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
         stat61.fail_size += sz;
     }
     return ptr;
+
+
 }
 
 

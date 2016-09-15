@@ -61,7 +61,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         return NULL;
     }
     //char* ptr = base_malloc(sz);
-    meta61 *ptr = malloc(sz + sizeof(meta61));
+    meta61 *ptr = malloc(sz + sizeof(meta61) + sizeof(int));
     if (!ptr) {
         stat61.nfail++;
         stat61.fail_size += sz;
@@ -72,8 +72,10 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     stat61.ntotal++;
     stat61.total_size += sz;
 
-    ptr->size = sz;		// set size equal to size of memory to be stored
-    ptr->pntr = (char*) (ptr + sizeof(meta61));	// sets stored pointer to point to stored data
+	//*(ptr + 1) = 0x
+
+    ptr->size = sz;					// set size equal to size of memory to be stored
+    ptr->pntr = (char*) (ptr + sizeof(meta61));		// sets stored pointer to point to stored data
     ptr->state = ALLOC;
 
     //******* add to linked list with insert_head function defined above ******************
@@ -81,13 +83,13 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 
     if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
         stat61.heap_min = ptr->pntr;				// set min
-        stat61.heap_max = ptr->pntr + sz;				// set max
+        stat61.heap_max = ptr->pntr + sz;			// set max
     }
-    else if (stat61.heap_min > ptr->pntr) {				// if current min greater than ptr
+    else if (stat61.heap_min > ptr->pntr) {			// if current min greater than ptr
         stat61.heap_min = ptr->pntr;				// set min to ptr
     }
-    else if (stat61.heap_max < ptr->pntr + sz) {			// if current max less than ptr
-        stat61.heap_max = ptr->pntr + sz;				// set max to ptr
+    else if (stat61.heap_max < ptr->pntr + sz) {		// if current max less than ptr
+        stat61.heap_max = ptr->pntr + sz;			// set max to ptr
     }
     // Your code here.
     return (void*) (ptr + sizeof(meta61));
@@ -107,7 +109,7 @@ void m61_free(void *ptr, const char *file, int line) {
         return;
     }
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
+        printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
         abort();
     }
     // if (mptr->state != ALLOC) {
@@ -140,9 +142,11 @@ void m61_free(void *ptr, const char *file, int line) {
 
     //     abort();
     // }
-    meta61* mptr = (meta61*) ptr - sizeof(meta61);
+    //meta61* mptr = (meta61*) ptr - sizeof(meta61);
+	meta61* mptr = (meta61*) ptr - sizeof(meta61);
+
     if (mptr->state == FREE) {
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p\n",file, line, ptr);
+        printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
     }
     if (mptr->state != ALLOC) {
@@ -150,11 +154,11 @@ void m61_free(void *ptr, const char *file, int line) {
         while (tmp != NULL){
             if (tmp == ptr) {
                 size_t offset = (size_t) ptr - (size_t) mptr;
-                printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n  %s:%d: %p: %p is %zu bytes inside a %zu byte region allocated here",file, line, ptr,file,line,mptr,ptr,offset,mptr->size);
+                printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n  %s:%d: %p: %p is %zu bytes inside a %zu byte region allocated here",file, line, ptr,file,line,mptr,ptr,offset,mptr->size);
                 abort();
             }
             tmp = tmp->next;
-        printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
+        printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
         abort();
         }
         // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);        

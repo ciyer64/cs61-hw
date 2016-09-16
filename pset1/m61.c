@@ -20,6 +20,8 @@ typedef struct meta61 {
     struct meta61* prev;
     struct meta61* next;
     char* state;
+    char* file;
+    int line;
 } meta61;
 
 typedef struct bookend {
@@ -275,5 +277,11 @@ void m61_printstatistics(void) {
 
 void m61_printleakreport(void) {
     // Your code here.
-    
+    if (head != NULL){
+        meta61* tmp = head;
+        while (tmp != NULL) {
+            printf("LEAK CHECK: %s:%d: allocated object with %p with size %zu", tmp->file, tmp->line, tmp->pntr,tmp->size);
+            tmp = tmp->next;
+        }
+    }
 }

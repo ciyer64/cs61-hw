@@ -8,7 +8,7 @@
 
 #define FREE ((char*) 0xF213E3ED)
 #define ALLOC ((char*) 0xA110C47D)
-#define ENDCHECK 0x5555
+#define ENDCHECK ((char*) 0xBACCCCCC)
 
 static struct m61_statistics stat61 = {
     0, 0, 0, 0, 0, 0, NULL, NULL
@@ -23,7 +23,7 @@ typedef struct meta61 {
 } meta61;
 
 typedef struct bookend {
-	int end;
+	char* foot;
 } bookend;
 
 meta61* head = NULL;
@@ -76,12 +76,12 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     stat61.ntotal++;
     stat61.total_size += sz;
 
-	bookend *end = (bookend*)(((char*) (ptr + 1)) + sz);
-	end->end = ENDCHECK;
-	
-    ptr->size = sz;					// set size equal to size of memory to be stored
-    ptr->pntr = ptr + 1;		// sets stored pointer to point to stored data
+    ptr->size = sz;                 // set size equal to size of memory to be stored
+    ptr->pntr = (char*) (ptr + 1);      // sets stored pointer to point to stored data
     ptr->state = ALLOC;
+
+	bookend *end = (bookend*)(ptr->pntr + ptr->size);
+	end->foot = ENDCHECK;
 
     //******* add to linked list with insert_head function defined above ******************
     insert_head(ptr);
@@ -97,10 +97,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.heap_max = ptr->pntr + sz;			// set max to ptr
     }
     // Your code here.
-    return (void*) (ptr + 1);
 	return (void*) (ptr->pntr);
 }
-
 
 /// m61_free(ptr, file, line)
 ///    Free the memory space pointed to by `ptr`, which must have been
@@ -114,54 +112,60 @@ void m61_free(void *ptr, const char *file, int line) {
     if (ptr == NULL) {
         return;
     }
+
+    meta61* mptr = (meta61*) ptr - 1;
+
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
         abort();
     }
     // if (mptr->state != ALLOC) {
-
         // case: specifically, user ptr within allocation
-
         /*
         meta61* tmp = head;
-
         while(tmp != NULL){
-
             //tmp stuff
-
             tmp = tmp->next;
         }
-
         [ meta     |usr pointer   [evil pointer]    user alloc stuff (sz sized) ]
         (char*)evil pointer - (user ptr)
-
-
         IF WITHIN REGION PRINT SECOND LINE OF ERROR ... 100 bytes into 2001 byte rgion etc..
         IF NOT IN ANY REGION GIVE JUST THE ONE LINE WARNING
-
         */
-
     //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
-
-
-
-
     //     abort();
     // }
-    meta61* mptr = ((meta61*) ptr) - 1;
     //meta61* mptr = (meta61*)((char*) ptr - sizeof(meta61));
     //meta61* mptr = (meta61*) ptr - 1;
-	bookend* endcap = (bookend*)(((char*) (mptr + 1)) + mptr->size);
 
-	if (endcap->end != ENDCHECK) {
-		printf("MEMORY BUG: %s:%d: detected wild write during free of pointer %p\n",file, line, ptr);
+    if (!mptr || mptr->state != ALLOC) {
+        printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
+        meta61* tmp = head;
+        while (tmp != NULL){
+            if (tmp == ptr) {
+                size_t offset = (size_t) ptr - (size_t) mptr;
+                printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n  %s:%d: %p: %p is %zu bytes inside a %zu byte region allocated here",file, line, ptr,file,line,mptr,ptr,offset,mptr->size);
+                abort();
+            }
+            tmp = tmp->next;
         abort();
-	}
+        }
+        // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);       
+    }
 
     if (mptr->state == FREE) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
     }
+
+    bookend* endcap = (bookend*) ((char*) ptr + mptr->size);
+	//bookend* endcap = (bookend*)(((char*) (mptr + 1)) + mptr->size);
+
+    if (endcap->foot != ENDCHECK) {
+        printf("MEMORY BUG: %s:%d: detected wild write during free of pointer %p\n",file, line, ptr);
+        abort();
+    }
+
     if (mptr->state != ALLOC) {
         meta61* tmp = head;
         while (tmp != NULL){
@@ -175,7 +179,7 @@ void m61_free(void *ptr, const char *file, int line) {
         abort();
         }
         // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);        
-        abort();
+        //abort();
     }
     stat61.nactive--;
     stat61.active_size -= mptr->size;
@@ -271,4 +275,5 @@ void m61_printstatistics(void) {
 
 void m61_printleakreport(void) {
     // Your code here.
+    
 }

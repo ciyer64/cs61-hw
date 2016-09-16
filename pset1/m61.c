@@ -21,6 +21,9 @@ typedef struct meta61 {
     char* state;
 } meta61;
 
+typedef struct bookend {
+    int foot;
+} bookend;
 
 meta61* head = NULL;
 

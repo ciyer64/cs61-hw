@@ -8,6 +8,7 @@
 
 #define FREE ((char*) 0xF213E3ED)
 #define ALLOC ((char*) 0xA110C47D)
+#define ENDCHECK 0x5555
 
 static struct m61_statistics stat61 = {
     0, 0, 0, 0, 0, 0, NULL, NULL
@@ -21,6 +22,9 @@ typedef struct meta61 {
     char* state;
 } meta61;
 
+typedef struct bookend {
+	int end;
+} bookend;
 
 meta61* head = NULL;
 
@@ -61,7 +65,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         return NULL;
     }
     //char* ptr = base_malloc(sz);
-    meta61 *ptr = malloc(sz + sizeof(meta61) + sizeof(int));
+    meta61 *ptr = malloc(sz + sizeof(meta61) + sizeof(bookend));
     if (!ptr) {
         stat61.nfail++;
         stat61.fail_size += sz;
@@ -72,10 +76,11 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     stat61.ntotal++;
     stat61.total_size += sz;
 
-	//*(ptr + 1) = 0x
-
+	bookend *end = (bookend*)(((char*) (ptr + 1)) + sz);
+	end->end = ENDCHECK;
+	
     ptr->size = sz;					// set size equal to size of memory to be stored
-    ptr->pntr = (char*) (ptr + sizeof(meta61));		// sets stored pointer to point to stored data
+    ptr->pntr = ptr + 1;		// sets stored pointer to point to stored data
     ptr->state = ALLOC;
 
     //******* add to linked list with insert_head function defined above ******************
@@ -92,7 +97,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.heap_max = ptr->pntr + sz;			// set max to ptr
     }
     // Your code here.
-    return (void*) (ptr + sizeof(meta61));
+    return (void*) (ptr + 1);
+	return (void*) (ptr->pntr);
 }
 
 
@@ -142,8 +148,15 @@ void m61_free(void *ptr, const char *file, int line) {
 
     //     abort();
     // }
-    //meta61* mptr = (meta61*) ptr - sizeof(meta61);
-	meta61* mptr = (meta61*) ptr - sizeof(meta61);
+    meta61* mptr = ((meta61*) ptr) - 1;
+    //meta61* mptr = (meta61*)((char*) ptr - sizeof(meta61));
+    //meta61* mptr = (meta61*) ptr - 1;
+	bookend* endcap = (bookend*)(((char*) (mptr + 1)) + mptr->size);
+
+	if (endcap->end != ENDCHECK) {
+		printf("MEMORY BUG: %s:%d: detected wild write during free of pointer %p\n",file, line, ptr);
+        abort();
+	}
 
     if (mptr->state == FREE) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
@@ -189,7 +202,7 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         // Copy the data from `ptr` into `new_ptr`.
         // To do that, we must figure out the size of allocation `ptr`.
         // Your code here (to fix test012).
-        meta61 *meta = (meta61*) ptr - sizeof(meta61);	// "recreates" the struct so it can be used here
+        meta61 *meta = ((meta61*) ptr) - 1;	// "recreates" the struct so it can be used here
         size_t old_sz = meta -> size;
         if (old_sz < sz)
             memcpy(new_ptr, ptr, old_sz);

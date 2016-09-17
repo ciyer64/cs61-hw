@@ -175,7 +175,7 @@ void m61_free(void *ptr, const char *file, int line) {
         abort();
     }
 
-	if (ptr && mptr->prev && (mptr->prev)->next != mptr) {
+	if (mptr->prev && (mptr->prev)->next != mptr) {
 		printf("MEMORY BUG: %s:%d: %zu free of pointer %p\n",file, line, mptr->size, ptr);
 		abort();
 	}

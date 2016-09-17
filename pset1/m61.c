@@ -281,8 +281,10 @@ void m61_printleakreport(void) {
     if (head != NULL){
         meta61* tmp = head;
         while (tmp != NULL) {
-            printf("LEAK CHECK: %s:%d: allocated object with %p with size %zu", tmp->file, tmp->line, tmp->pntr,tmp->size);
-            tmp = tmp->next;
+            if (tmp->state == ALLOC) {
+		printf("LEAK CHECK: %s:%d: allocated object %p with size %zu", tmp->file, tmp->line, tmp->pntr,tmp->size);
+            }
+	    tmp=tmp->next;
         }
     }
 }

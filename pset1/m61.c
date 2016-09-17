@@ -147,7 +147,7 @@ void m61_free(void *ptr, const char *file, int line) {
         }
         tmp1 = tmp1->next;
     }
-
+	// check for misallocation
     if (!mptr || mptr->state != ALLOC || !isAlloc) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
         meta61* tmp2 = head;
@@ -161,7 +161,7 @@ void m61_free(void *ptr, const char *file, int line) {
         abort();
         }      
     }
-
+	// check for double frees
     if (mptr->state == FREE) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
@@ -178,13 +178,12 @@ void m61_free(void *ptr, const char *file, int line) {
         printf("MEMORY BUG: %s:%d: detected wild write during free of pointer %p\n",file, line, ptr);
         abort();
     }
-
+	// update stats
     stat61.nactive--;
     stat61.active_size -= mptr->size;
     mptr->state = FREE;
     remove_node(mptr);
     base_free(mptr);
-    // base_free(ptr);
 }
 
 

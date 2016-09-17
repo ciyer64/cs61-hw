@@ -73,7 +73,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         return NULL;
     }
     //char* ptr = base_malloc(sz);
-    meta61 *ptr = malloc(sz + sizeof(meta61) + sizeof(bookend));
+    meta61 *ptr = base_malloc(sz + sizeof(meta61) + sizeof(bookend));
     if (!ptr) {
         stat61.nfail++;
         stat61.fail_size += sz;

@@ -164,16 +164,16 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 
 	// if no max or min, set them
     if (stat61.heap_min == NULL && stat61.heap_max == NULL) {
-        stat61.heap_min = ptr->pntr;
-        stat61.heap_max = ptr->pntr + sz;
+        stat61.heap_min = (char*) ptr;
+        stat61.heap_max = ptr->pntr + sz + sizeof(bookend);
     }
 	// if current min greater than ptr, set min to ptr
-    else if (stat61.heap_min > ptr->pntr) {
-        stat61.heap_min = ptr->pntr;
+    else if (stat61.heap_min > (char*) ptr) {
+        stat61.heap_min = (char*) ptr;
     }
 	// if current max less than ptr, set max to ptr
-    else if (stat61.heap_max < ptr->pntr + sz) {
-        stat61.heap_max = ptr->pntr + sz;
+    else if (stat61.heap_max < ptr->pntr + ptr->size + sizeof(bookend)) {
+        stat61.heap_max = ptr->pntr + ptr->size +sizeof(bookend);
     }
     return (void*) (ptr->pntr);
 }

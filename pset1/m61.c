@@ -241,15 +241,24 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
     size_t total_sz = nmemb*sz;
     void* ptr = NULL;
 	// ensure no overflow
-    if (total_sz >= nmemb*sz) { 
-		ptr = m61_malloc(nmemb * sz, file, line);
-    }
+	if (total_sz < sz*nmemb) {
+		stat61.nfail++;
+		stat61.fail_size += sz;
+		return NULL;
+	}
+	if (total_sz < nmemb) {
+		stat61.nfail++;
+		stat61.fail_size += sz;
+		return NULL;
+	}
+	ptr = m61_malloc(nmemb * sz, file, line);
+	if (!ptr) {
+		stat61.nfail++;
+        stat61.fail_size += sz;
+		return NULL;
+	}
     if (ptr) {
         memset(ptr, 0, nmemb * sz);
-    }
-    else {
-        stat61.nfail++;
-        stat61.fail_size += sz;
     }
     return ptr;
 }

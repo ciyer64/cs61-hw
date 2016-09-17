@@ -40,12 +40,19 @@ void insert_head(meta61* n) {
 }
 
 void remove_node(meta61* n) {
-    if (n->next)
-        n->next->prev = n->prev;
-    if (n->prev)
-        n->prev->next = n->next;
-    else
-        head = n->next;
+	meta61* tmp3 = head;
+	while (tmp3) {
+		if (tmp3 == n) {
+			meta61* nxt = n->next;
+			meta61* prv = n->prev;
+			if (nxt)
+				nxt->prev = prv;
+			if (prv)
+				prv->next = nxt;
+			break;
+		}
+		tmp3 = tmp3->next;
+	}
 }
 
 /// m61_malloc(sz, file, line)
@@ -83,7 +90,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     ptr->file = file;
     ptr->line = line;
     
-    bookend *end = (bookend*)(ptr->pntr + ptr->size);
+    bookend *end = (bookend*) (ptr->pntr + ptr->size);
     end->foot = ENDCHECK;
 
     //******* add to linked list with insert_head function defined above ******************
@@ -116,8 +123,6 @@ void m61_free(void *ptr, const char *file, int line) {
         return;
     }
 
-    meta61* mptr = (meta61*) ptr - 1;
-
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
         abort();
@@ -139,21 +144,30 @@ void m61_free(void *ptr, const char *file, int line) {
     //     abort();
     // }
     //meta61* mptr = (meta61*)((char*) ptr - sizeof(meta61));
-    //meta61* mptr = (meta61*) ptr - 1;
+	meta61* mptr = (meta61*) ptr - 1;
 
-    if (!mptr || mptr->state != ALLOC) {
+    meta61* tmp1 = head;
+    int isAlloc=0;
+    while (tmp1) {
+        if (tmp1->pntr == ptr) {
+            isAlloc=1;
+            break;
+        }
+        tmp1 = tmp1->next;
+    }
+
+    if (!mptr || mptr->state != ALLOC || !isAlloc) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
-        meta61* tmp = head;
-        while (tmp){
-            if ((tmp->pntr < ((char*) ptr)) && (((char*) ptr) < (tmp->pntr + tmp->size))) {
-                size_t offset = (size_t) ptr - (size_t) tmp->pntr;
-                printf("  %s:%d: %p is %zu bytes inside a %zu byte region allocated here\n",file, line-1, ptr,offset,tmp->size);
+        meta61* tmp2 = head;
+        while (tmp2) {
+            if ((tmp2->pntr < ((char*) ptr)) && (((char*) ptr) < (tmp2->pntr + tmp2->size))) {
+                size_t offset = (size_t) ptr - (size_t) tmp2->pntr;
+                printf("  %s:%d: %p is %zu bytes inside a %zu byte region allocated here\n",file, line-1, ptr,offset,tmp2->size);
                 abort();
             }
-            tmp = tmp->next;
+            tmp2 = tmp2->next;
         abort();
-        }
-        // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);       
+        }      
     }
 
     if (mptr->state == FREE) {
@@ -161,33 +175,22 @@ void m61_free(void *ptr, const char *file, int line) {
         abort();
     }
 
+	if (ptr && mptr->prev && (mptr->prev)->next != mptr) {
+		printf("MEMORY BUG: %s:%d: %zu free of pointer %p\n",file, line, mptr->size, ptr);
+		abort();
+	}
+
     bookend* endcap = (bookend*) ((char*) ptr + mptr->size);
-	//bookend* endcap = (bookend*)(((char*) (mptr + 1)) + mptr->size);
 
     if (endcap->foot != ENDCHECK) {
         printf("MEMORY BUG: %s:%d: detected wild write during free of pointer %p\n",file, line, ptr);
         abort();
     }
 
-    if (mptr->state != ALLOC) {
-        meta61* tmp = head;
-        while (tmp != NULL){
-            if (tmp == ptr) {
-                size_t offset = (size_t) ptr - (size_t) mptr;
-                printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n  %s:%d: %p: %p is %zu bytes inside a %zu byte region allocated here",file, line, ptr,file,line,mptr,ptr,offset,mptr->size);
-                abort();
-            }
-            tmp = tmp->next;
-        printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
-        abort();
-        }
-        // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);        
-        //abort();
-    }
     stat61.nactive--;
     stat61.active_size -= mptr->size;
     mptr->state = FREE;
-    //remove_node(ptr);
+    remove_node(mptr);
     base_free(mptr);
     // base_free(ptr);
 }

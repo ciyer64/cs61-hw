@@ -144,10 +144,10 @@ void m61_free(void *ptr, const char *file, int line) {
     if (!mptr || mptr->state != ALLOC) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
         meta61* tmp = head;
-        while (tmp != NULL){
-            if (tmp == ptr) {
-                size_t offset = (size_t) ptr - (size_t) mptr;
-                printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n  %s:%d: %p: %p is %zu bytes inside a %zu byte region allocated here",file, line, ptr,file,line,mptr,ptr,offset,mptr->size);
+        while (tmp){
+            if ((tmp->pntr < ((char*) ptr)) && (((char*) ptr) < (tmp->pntr + tmp->size))) {
+                size_t offset = (size_t) ptr - (size_t) tmp->pntr;
+                printf("  %s:%d: %p is %zu bytes inside a %zu byte region allocated here\n",file, line-1, ptr,offset,tmp->size);
                 abort();
             }
             tmp = tmp->next;
@@ -282,7 +282,7 @@ void m61_printleakreport(void) {
         meta61* tmp = head;
         while (tmp != NULL) {
             if (tmp->state == ALLOC) {
-		printf("LEAK CHECK: %s:%d: allocated object %p with size %zu", tmp->file, tmp->line, tmp->pntr,tmp->size);
+		printf("LEAK CHECK: %s:%d: allocated object %p with size %zu\n", tmp->file, tmp->line, tmp->pntr,tmp->size);
             }
 	    tmp=tmp->next;
         }

@@ -20,7 +20,7 @@ typedef struct meta61 {
     struct meta61* prev;
     struct meta61* next;
     char* state;
-    char* file;
+    const char* file;
     int line;
 } meta61;
 
@@ -56,8 +56,7 @@ void remove_node(meta61* n) {
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
-    size_t max_size = (size_t) -1;
-    max_size -= sizeof(meta61);
+    size_t max_size = sz + sizeof(meta61) + sizeof(bookend);
     if (sz > max_size) {
         stat61.nfail++;
         stat61.fail_size += sz;
@@ -81,9 +80,11 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     ptr->size = sz;                 // set size equal to size of memory to be stored
     ptr->pntr = (char*) (ptr + 1);      // sets stored pointer to point to stored data
     ptr->state = ALLOC;
-
-	bookend *end = (bookend*)(ptr->pntr + ptr->size);
-	end->foot = ENDCHECK;
+    ptr->file = file;
+    ptr->line = line;
+    
+    bookend *end = (bookend*)(ptr->pntr + ptr->size);
+    end->foot = ENDCHECK;
 
     //******* add to linked list with insert_head function defined above ******************
     insert_head(ptr);
@@ -99,7 +100,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         stat61.heap_max = ptr->pntr + sz;			// set max to ptr
     }
     // Your code here.
-	return (void*) (ptr->pntr);
+    return (void*) (ptr->pntr);
 }
 
 /// m61_free(ptr, file, line)

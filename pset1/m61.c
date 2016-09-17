@@ -252,11 +252,13 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
 		return NULL;
 	}
 	ptr = m61_malloc(nmemb * sz, file, line);
+/*
 	if (!ptr) {
 		stat61.nfail++;
         stat61.fail_size += sz;
 		return NULL;
 	}
+*/
     if (ptr) {
         memset(ptr, 0, nmemb * sz);
     }

@@ -241,7 +241,7 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
     size_t total_sz = nmemb*sz;
     void* ptr = NULL;
 	// ensure no overflow
-	if (total_sz < sz*nmemb) {
+	if (total_sz < sz) {
 		stat61.nfail++;
 		stat61.fail_size += sz;
 		return NULL;

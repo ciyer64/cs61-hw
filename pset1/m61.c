@@ -20,7 +20,7 @@ typedef struct meta61 {
     struct meta61* prev;
     struct meta61* next;
     char* state;
-    char* file;
+    const char* file;
     int line;
 } meta61;
 
@@ -81,6 +81,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     ptr->size = sz;                 // set size equal to size of memory to be stored
     ptr->pntr = (char*) (ptr + 1);      // sets stored pointer to point to stored data
     ptr->state = ALLOC;
+    ptr->file = file;
+    ptr->line = line;
 
 	bookend *end = (bookend*)(ptr->pntr + ptr->size);
 	end->foot = ENDCHECK;
@@ -111,11 +113,9 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 void m61_free(void *ptr, const char *file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
     // Your code here.
-    if (ptr == NULL) {
+    if (!ptr) {
         return;
     }
-
-    meta61* mptr = (meta61*) ptr - 1;
 
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
@@ -139,6 +139,12 @@ void m61_free(void *ptr, const char *file, int line) {
     // }
     //meta61* mptr = (meta61*)((char*) ptr - sizeof(meta61));
     //meta61* mptr = (meta61*) ptr - 1;
+    meta61* mptr = (meta61*) ptr - 1;
+
+    if (mptr->state == FREE) {
+        printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
+        abort();
+    }
 
     if (!mptr || mptr->state != ALLOC) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
@@ -153,11 +159,6 @@ void m61_free(void *ptr, const char *file, int line) {
         abort();
         }
         // printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);       
-    }
-
-    if (mptr->state == FREE) {
-        printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
-        abort();
     }
 
     bookend* endcap = (bookend*) ((char*) ptr + mptr->size);
@@ -276,12 +277,12 @@ void m61_printstatistics(void) {
 ///    memory.
 
 void m61_printleakreport(void) {
-    // Your code here.
-    if (head != NULL){
-        meta61* tmp = head;
-        while (tmp != NULL) {
-            printf("LEAK CHECK: %s:%d: allocated object with %p with size %zu", tmp->file, tmp->line, tmp->pntr,tmp->size);
-            tmp = tmp->next;
-        }
+    meta61* tmp = head;
+    while (tmp) {
+        if (tmp->state != FREE) {
+            printf("LEAK CHECK:");
+        tmp = tmp->next;
     }
+    }
+    // Your code here.
 }

@@ -1,0 +1,68 @@
+CS61 x86-64 Assembly Cheat Sheat
+
+A. Registers
+A1. There are a total of <HOWMANY> general purpose (GP) registers.
+	16
+A2. There are <HOWMANY> GP registers with symbolic names.
+	8
+A3. They are: <LIST ALL THE NAMED REGISTERS>
+	rax, rbx, rcx, rdx, rsi, rdi, rbp, rsp
+A4. There are <HOWMANY> GP registers with number names.
+	8
+A5. They are: <DESCRIBE/LIST ALL THE NUMBERED REGISTERS>
+	r8, r9, r10, r11, r12, r13, r14, r15
+A6. rip is: <DESCRIBE IT> instructional pointer - keeps track of where the code is looking for instructions (also a "program counter")
+A7. rsp is: <DESCRIBE IT>
+A8. rbp is: <DESCRIBE IT>
+
+B. Parameter passing
+B1. The first argument to a function is passed in register <NAME> rdi.
+B2. The second argument to a function is passed in register <NAME> rsi.
+B3. The third argument to a function is passed in register <NAME>rdx.
+B4. The fourth argument to a function is passed in register <NAME>rcs.
+B5. The fifth argument to a function is passed in register <NAME> r8.
+B6. The sixth argument to a function is passed in register <NAME> r9.
+B7. The seventh argument to a function is passed <in memory> on the stack.
+
+C. Addressing modes
+C1. $N (for N a number) means: use the value "N"
+C2. The expression %REG (for REG a register) means: use the value stored in REG
+C3. (%REG) means: use the value stored in %REG as an address and go to that address in memory
+C4. (%REG, %REG) means: add the values in the two registers and go to that address
+C5. (%REG, %REG, N) for N=1, 2, 4 or 8 means: add N * REG2 to REG1 and go to that address
+C6. N(<MODE>) for addressing mode C3, C4, or C5 means: add value of "N" to the address formed inside the parentheses
+C7. lea<TYPE> (for TYPE one of b,w,l,q) means: 
+
+D. x86 flags
+For each of the following flags, write down what it means for the flag
+to be set:
+D1. SF - Sign Flag
+D2. CF - Carry Flag
+D3. ZF - Zero Flag
+D4. OF - Overflow Flag
+
+E. Instructions whose only purpose is to set flag values:
+Explain how each instruction sets the flag registers.
+E1. cmp operand1, operand2
+E2. test operand1, operand2
+
+F. Jump Instructions
+For each jump instruction below, write the expression describing when
+the jump will be taken. You will undoubtedly find it useful to
+describe this both in terms of which flags you must check but also,
+assuming that the previous operation were a cmp or test instruction,
+what relationship the operands of the previous instruction have, e.g.,
+op1 > op2, or op1 != 0, or whatever applies.
+
+F1. je - jump if equal (ZF zeroflag == 1)
+F2. jne - jump if not equal (ZF zeroflag == 0)
+F3. js - jump if signed/negative (SF signflag == 1)
+F4. jns - jump if not signed/positive (SF signflag == 0)
+F5. jg
+F6. jge
+F7. jl - jump if less (SF != OF)
+F8. jle
+F9. ja
+F10. jae
+F11. jb
+F12. jbe

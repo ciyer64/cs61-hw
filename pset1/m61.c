@@ -14,23 +14,38 @@ static struct m61_statistics stat61 = {
     0, 0, 0, 0, 0, 0, NULL, NULL
 };
 
+// metadata
 typedef struct meta61 {
-    size_t size;
-    char* pntr;
-    struct meta61* prev;
-    struct meta61* next;
-    char* state;
-    const char* file;
-    int line;
+    size_t size; // size of user allocation
+    char* pntr; // pointer to payload
+    struct meta61* prev; // pointer to previous
+    struct meta61* next; // pointer to next
+    char* state; // state of allocation (ALLOC, FREE, etc.)
+    const char* file; // file name
+    int line; // file line number
 } meta61;
 
+// end boundary
 typedef struct bookend {
-	char* foot;
+	char* foot; // state of end data (ENDCHECK)
 } bookend;
 
+// heavy hitter node
+typedef struct hh61 {
+	size_t size;
+	const char* file;
+	int line;
+	struct hh61* next;
+	struct hh61* prev;
+} hh61;
+
 meta61* head = NULL;
+hh61* head_hh = NULL;
+
+long long alloc_sampled = 0;
 
 // from C patterns page of cs61 WIKI
+// insert new node as head of linked list
 void insert_head(meta61* n) {
     n->next = head;
     n->prev = NULL;
@@ -38,21 +53,44 @@ void insert_head(meta61* n) {
         head->prev = n;
     head = n;
 }
-
+// remove node from linked list
 void remove_node(meta61* n) {
-	meta61* tmp3 = head;
-	while (tmp3) {
-		if (tmp3 == n) {
-			meta61* nxt = n->next;
-			meta61* prv = n->prev;
-			if (nxt)
-				nxt->prev = prv;
-			if (prv)
-				prv->next = nxt;
-			break;
-		}
-		tmp3 = tmp3->next;
+	if (n->next)
+		n->next->prev = n->prev;
+	if (n->prev)
+		n->prev->next = n->next;
+	else
+		head = n->next;
+}
+
+// analogous functions implemented for the heavy hitter nodes
+void insert_hh_head(hh61* n) {
+	n->next = head_hh;
+	n->prev = NULL;
+	if (head_hh)
+		head_hh->prev=n;
+	head_hh = n;
+}
+
+void remove_node_hh(hh61* n) {
+	if (n->next)
+		n->next->prev = n->prev;
+	if (n->prev)
+		n->prev->next = n->next;
+	else
+		head_hh = n->next;
+}
+
+// traverse heavy hitter list to return a node allocated, 
+// given a line number, so that we can update the size
+hh61* hh_search(int line) {
+	hh61* tmp = head_hh;
+	while (tmp) {
+		if (tmp->line == line)
+			return tmp;
+		tmp = tmp->next;
 	}
+	return NULL;
 }
 
 /// m61_malloc(sz, file, line)
@@ -63,52 +101,83 @@ void remove_node(meta61* n) {
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
+    // Your code here.
+	// check size overflow
     size_t max_size = sz + sizeof(meta61) + sizeof(bookend);
     if (sz > max_size) {
         stat61.nfail++;
         stat61.fail_size += sz;
         return NULL;
     }
+	// check if zero size
     if (sz==0) {
         return NULL;
     }
-    //char* ptr = base_malloc(sz);
-    meta61 *ptr = base_malloc(sz + sizeof(meta61) + sizeof(bookend));
+	// allocate extra space (metadata, bookend)
+    meta61 *ptr = (meta61*) base_malloc(sz + sizeof(meta61) + sizeof(bookend));
+	// check if failed allocation
     if (!ptr) {
         stat61.nfail++;
         stat61.fail_size += sz;
-        return NULL;
+        return ptr;
     }
-    stat61.nactive++;
-    stat61.active_size += sz;
-    stat61.ntotal++;
-    stat61.total_size += sz;
-
-    ptr->size = sz;                 // set size equal to size of memory to be stored
-    ptr->pntr = (char*) (ptr + 1);      // sets stored pointer to point to stored data
+    //set metadata
+	// set size equal to size of user allocated memory
+    ptr->size = sz;
+	// set pntr equal to pointer to payload
+    ptr->pntr = (char*) (ptr + 1);
+	// update state to reflect allocation
     ptr->state = ALLOC;
+	// include file name and line number
     ptr->file = file;
     ptr->line = line;
-    
+
+    //set footer
     bookend *end = (bookend*) (ptr->pntr + ptr->size);
     end->foot = ENDCHECK;
 
-    //******* add to linked list with insert_head function defined above ******************
+	//set stats
+	stat61.nactive++;
+	stat61.active_size += sz;
+	stat61.ntotal++;
+	stat61.total_size += sz;
+	
+	// heavy hitter stuff
+	if (strcmp(file,"hhtest.c")==0) {
+		hh61* count = hh_search(line);
+		if (count) {
+			count->size += sz;
+			alloc_sampled += sz;
+		}
+		else if (rand() % 99 == 1){
+			hh61* hh_new = (hh61*) malloc(sizeof(hh61));
+			hh_new->size = sz;
+			hh_new->file = file;	
+			hh_new->line = line;
+			insert_hh_head(hh_new);
+			alloc_sampled += sz;
+		}
+	}
+
+    //add to linked list with insert_head function defined above
     insert_head(ptr);
 
-    if (stat61.heap_min == NULL && stat61.heap_max == NULL) {	// if no max or min set
-        stat61.heap_min = ptr->pntr;				// set min
-        stat61.heap_max = ptr->pntr + sz;			// set max
+	// if no max or min, set them
+    if (stat61.heap_min == NULL && stat61.heap_max == NULL) {
+        stat61.heap_min = (char*) ptr;
+        stat61.heap_max = ptr->pntr + sz + sizeof(bookend);
     }
-    else if (stat61.heap_min > ptr->pntr) {			// if current min greater than ptr
-        stat61.heap_min = ptr->pntr;				// set min to ptr
+	// if current min greater than ptr, set min to ptr
+    else if (stat61.heap_min > (char*) ptr) {
+        stat61.heap_min = (char*) ptr;
     }
-    else if (stat61.heap_max < ptr->pntr + sz) {		// if current max less than ptr
-        stat61.heap_max = ptr->pntr + sz;			// set max to ptr
+	// if current max less than ptr, set max to ptr
+    else if (stat61.heap_max < ptr->pntr + ptr->size + sizeof(bookend)) {
+        stat61.heap_max = ptr->pntr + ptr->size +sizeof(bookend);
     }
-    // Your code here.
     return (void*) (ptr->pntr);
 }
+
 
 /// m61_free(ptr, file, line)
 ///    Free the memory space pointed to by `ptr`, which must have been
@@ -119,33 +188,19 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 void m61_free(void *ptr, const char *file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
     // Your code here.
+	// check if null pointer
     if (ptr == NULL) {
         return;
     }
-
+	// check if the ptr falls outside the heap
     if ((char*) ptr > stat61.heap_max || (char*) ptr < stat61.heap_min) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not in heap\n",file, line, ptr);
         abort();
     }
-    // if (mptr->state != ALLOC) {
-        // case: specifically, user ptr within allocation
-        /*
-        meta61* tmp = head;
-        while(tmp != NULL){
-            //tmp stuff
-            tmp = tmp->next;
-        }
-        [ meta     |usr pointer   [evil pointer]    user alloc stuff (sz sized) ]
-        (char*)evil pointer - (user ptr)
-        IF WITHIN REGION PRINT SECOND LINE OF ERROR ... 100 bytes into 2001 byte rgion etc..
-        IF NOT IN ANY REGION GIVE JUST THE ONE LINE WARNING
-        */
-    //     printf("MEMORY BUG %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
-    //     abort();
-    // }
-    //meta61* mptr = (meta61*)((char*) ptr - sizeof(meta61));
+	// allocate a pointer to the metadata
 	meta61* mptr = (meta61*) ptr - 1;
 
+	// check if ptr already allocated in linked list
     meta61* tmp1 = head;
     int isAlloc=0;
     while (tmp1) {
@@ -155,10 +210,11 @@ void m61_free(void *ptr, const char *file, int line) {
         }
         tmp1 = tmp1->next;
     }
-
+	// check for misallocation
     if (!mptr || mptr->state != ALLOC || !isAlloc) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p, not allocated\n",file, line, ptr);
         meta61* tmp2 = head;
+		// iterate through linked list to find specific offset
         while (tmp2) {
             if ((tmp2->pntr < ((char*) ptr)) && (((char*) ptr) < (tmp2->pntr + tmp2->size))) {
                 size_t offset = (size_t) ptr - (size_t) tmp2->pntr;
@@ -169,30 +225,31 @@ void m61_free(void *ptr, const char *file, int line) {
         abort();
         }      
     }
-
+	// check for double frees
     if (mptr->state == FREE) {
         printf("MEMORY BUG: %s:%d: invalid free of pointer %p\n",file, line, ptr);
         abort();
     }
-
-	if (mptr->prev && (mptr->prev)->next != mptr) {
+	// check the "links" of the linked list
+	if (mptr->next && (mptr->next)->prev != mptr) {
 		printf("MEMORY BUG: %s:%d: %zu free of pointer %p\n",file, line, mptr->size, ptr);
 		abort();
 	}
-
+	// allocate end struct
     bookend* endcap = (bookend*) ((char*) ptr + mptr->size);
-
+	// check for boundary overwrite
     if (endcap->foot != ENDCHECK) {
         printf("MEMORY BUG: %s:%d: detected wild write during free of pointer %p\n",file, line, ptr);
         abort();
     }
-
+	// update stats
     stat61.nactive--;
     stat61.active_size -= mptr->size;
     mptr->state = FREE;
+
+	// remove node from linked list and free pointer
     remove_node(mptr);
     base_free(mptr);
-    // base_free(ptr);
 }
 
 
@@ -212,7 +269,9 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         // Copy the data from `ptr` into `new_ptr`.
         // To do that, we must figure out the size of allocation `ptr`.
         // Your code here (to fix test012).
-        meta61 *meta = ((meta61*) ptr) - 1;	// "recreates" the struct so it can be used here
+		// allocate pointer to metadata
+        meta61 *meta = ((meta61*) ptr) - 1;
+		// retrieve size of payload
         size_t old_sz = meta -> size;
         if (old_sz < sz)
             memcpy(new_ptr, ptr, old_sz);
@@ -236,15 +295,20 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
     // Your code here (to fix test014).
     size_t total_sz = nmemb*sz;
     void* ptr = NULL;
-    if (total_sz >= nmemb) { //ensure no overflow
-        ptr = m61_malloc(nmemb * sz, file, line);
-    }
+	// ensure no overflow
+	if (total_sz < sz) {
+		stat61.nfail++;
+		stat61.fail_size += sz;
+		return NULL;
+	}
+	if (total_sz < nmemb) {
+		stat61.nfail++;
+		stat61.fail_size += sz;
+		return NULL;
+	}
+	ptr = m61_malloc(nmemb * sz, file, line);
     if (ptr) {
         memset(ptr, 0, nmemb * sz);
-    }
-    else {
-        stat61.nfail++;
-        stat61.fail_size += sz;
     }
     return ptr;
 }
@@ -255,7 +319,7 @@ void* m61_calloc(size_t nmemb, size_t sz, const char* file, int line) {
 
 void m61_getstatistics(struct m61_statistics* stats) {
     // Stub: set all statistics to enormous numbers
-    memset(stats, 255, sizeof(struct m61_statistics));
+    //memset(stats, 255, sizeof(struct m61_statistics));
     // Your code here.
     *stats = stat61;
 }
@@ -290,4 +354,27 @@ void m61_printleakreport(void) {
 	    tmp=tmp->next;
         }
     }
+}
+
+void m61_printheavyhitter(void){
+	hh61* tmp = head_hh;
+	hh61* hh_to_free;
+	while (tmp) {
+		double alloc_bytes = (double) tmp->size;
+		double percent_bytes_alloc = (alloc_bytes/alloc_sampled) * 100.0;
+		if (percent_bytes_alloc >= 20.0) {
+			printf("HEAVY HITTER: %s:%d: %f bytes (~%.1f%%)\n", tmp->file, tmp->line, alloc_bytes, percent_bytes_alloc);
+		}
+		if (tmp->next) {
+			tmp = tmp->next;
+			hh_to_free = tmp->prev;
+		}
+		else {
+			hh_to_free = tmp;
+			tmp = NULL;
+		}
+		remove_node_hh(hh_to_free);
+		base_free(hh_to_free);
+	}
+	
 }

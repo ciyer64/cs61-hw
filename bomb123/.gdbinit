@@ -1,4 +1,4 @@
 file bomb
 break explode_bomb
-break phase_6
+break secret_phase
 run answers.txt

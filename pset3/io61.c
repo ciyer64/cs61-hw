@@ -4,6 +4,8 @@
 #include <limits.h>
 #include <errno.h>
 
+#define BFSZ 1048576
+
 // io61.c
 //    YOUR CODE HERE!
 
@@ -11,8 +13,13 @@
 // io61_file
 //    Data structure for io61 file wrappers. Add your own stuff.
 
+// from storage3X exercise
 struct io61_file {
-    int fd;
+    int fd; // file descriptor
+	unsigned char cbuf[BFSZ]; // cache buffer
+	off_t tag; // file offset of first character in cache
+	off_t end_tag; // file offset one past last valid char in cache
+	off_t pos_tag; // file offset of next tag to read in cache
 };
 
 
@@ -82,13 +89,16 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
     //int ch = io61_readc(f);
     //unsigned char* temp_buf[sz];
 
-	int ret = read(f->fd, buf, sz);
+	//int ret = read(f->fd, buf, sz);
 
+	/* ** BEGIN WORKING NON-CACHE CODE **
     if (ret <= (ssize_t) sz && ret != -1) {
 		return ret;
 	}
 	else
 		return -1;
+	** END WORKING NON-CACHE CODE **
+	*/
 	//return buf;
 
         //if (ch == EOF)
@@ -100,6 +110,25 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
     //    return nread;
     //else
     //    return -1;
+	size_t pos = 0;
+	while (pos != sz) {
+		if (f->pos_tag < f->end_tag) {
+			ssize_t n = sz - pos;
+			if (n > f->end_tag - f->pos_tag)
+				n = f->end_tag - f->pos_tag;
+			memcpy(&buf[pos], &f->cbuf[f->pos_tag - f->tag], n);
+			f->pos_tag += n;
+			pos += n;
+		} else {
+			f->tag = f->end_tag;
+			ssize_t n = read(f->fd, f->cbuf, BUFSIZ);
+			if (n > 0)
+				f->end_tag += n;
+			else
+				return pos ? pos : n;
+		}
+	}
+	return pos;
 }
 
 
@@ -132,15 +161,33 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
     }
     if (nwritten != 0 || sz == 0)
         return nwritten;*/
-    
+
+	/* ** BEGIN WORKING NON-CACHE CODE
 	int ret = write(f->fd, buf, sz);
-	
 	if (ret <= (ssize_t) sz && ret != -1) {
 		return ret;
 	}
-
 	else
         return -1;
+	END WORKING NON-CACHE CODE */
+	size_t pos = 0;
+	while (pos != sz) {
+		if (f->pos_tag - f->tag < BFSZ) {
+			ssize_t n = sz-pos;
+			if (BFSZ - (f->pos_tag - f->tag) < n)
+				n = BFSZ - (f->pos_tag - f->tag);
+			memcpy(&f->cbuf[f->pos_tag - f->tag], &buf[pos], n);
+			f->pos_tag += n;
+			if (f->pos_tag > f->end_tag)
+					f->end_tag = f->pos_tag;
+			pos += n;
+		}
+		assert(f->pos_tag <= f->end_tag);	
+
+		if (f->pos_tag - f->tag == BFSZ)
+			io61_flush(f);
+	}
+	return pos;
 }
 
 
@@ -150,7 +197,12 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 //    data buffered for reading, or do nothing.
 
 int io61_flush(io61_file* f) {
-    (void) f;
+    //(void) f;
+	if (f->end_tag != f->tag) {
+		ssize_t n = write(f->fd, f->cbuf, f->end_tag - f->tag);
+		assert(n == f->end_tag - f->tag);
+	}
+	f->pos_tag = f->tag = f->end_tag;
     return 0;
 }
 
@@ -160,11 +212,21 @@ int io61_flush(io61_file* f) {
 //    Returns 0 on success and -1 on failure.
 
 int io61_seek(io61_file* f, off_t pos) {
-    off_t r = lseek(f->fd, (off_t) pos, SEEK_SET);
+    /*
+	off_t r = lseek(f->fd, (off_t) pos, SEEK_SET);
     if (r == (off_t) pos)
         return 0;
     else
         return -1;
+	*/
+	if (pos < f->tag || pos > f->end_tag) {
+		off_t r = lseek(f->fd, (off_t) pos, SEEK_SET);
+		if (r != pos)
+			return -1;
+		f->tag = f->end_tag = pos;
+	}
+	f->pos_tag = pos;
+	return 0;
 }
 
 

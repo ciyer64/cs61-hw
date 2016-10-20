@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <errno.h>
 
-#define BFSZ 1048576
+#define BUFSIZ 4096
 
 // io61.c
 //    YOUR CODE HERE!
@@ -13,13 +13,14 @@
 // io61_file
 //    Data structure for io61 file wrappers. Add your own stuff.
 
-// from storage3X exercise
+// from storage3X & 4X exercise
 struct io61_file {
     int fd; // file descriptor
-	unsigned char cbuf[BFSZ]; // cache buffer
+	unsigned char cbuf[BUFSIZ]; // cache buffer
 	off_t tag; // file offset of first character in cache
 	off_t end_tag; // file offset one past last valid char in cache
 	off_t pos_tag; // file offset of next tag to read in cache
+	int mode;
 };
 
 
@@ -32,7 +33,7 @@ io61_file* io61_fdopen(int fd, int mode) {
     assert(fd >= 0);
     io61_file* f = (io61_file*) malloc(sizeof(io61_file));
     f->fd = fd;
-    (void) mode;
+    f->mode = mode;
     return f;
 }
 
@@ -67,53 +68,12 @@ int io61_readc(io61_file* f) {
 //    count, which might be zero, if the file ended before `sz` characters
 //    could be read. Returns -1 if an error occurred before any characters
 //    were read.
-/*
+
 ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
-    size_t nread = 0;
-    while (nread != sz) {
-        int ch = io61_readc(f);
-        if (ch == EOF)
-            break;
-        buf[nread] = ch;
-        ++nread;
-    }
-    if (nread != 0 || sz == 0 || io61_eof(f))
-        return nread;
-    else
-        return -1;
-}
-*/
-ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
-    //size_t nread = 0;
-    //while (nread != sz) {
-    //int ch = io61_readc(f);
-    //unsigned char* temp_buf[sz];
-
-	//int ret = read(f->fd, buf, sz);
-
-	/* ** BEGIN WORKING NON-CACHE CODE **
-    if (ret <= (ssize_t) sz && ret != -1) {
-		return ret;
-	}
-	else
-		return -1;
-	** END WORKING NON-CACHE CODE **
-	*/
-	//return buf;
-
-        //if (ch == EOF)
-	
-    //buf[nread] = ch;
-    //++nread;
-    //}
-    //if (nread != 0 || sz == 0 || io61_eof(f))
-    //    return nread;
-    //else
-    //    return -1;
 	size_t pos = 0;
 	while (pos != sz) {
 		if (f->pos_tag < f->end_tag) {
-			ssize_t n = sz - pos;
+			size_t n = sz - pos;
 			if (n > f->end_tag - f->pos_tag)
 				n = f->end_tag - f->pos_tag;
 			memcpy(&buf[pos], &f->cbuf[f->pos_tag - f->tag], n);
@@ -153,38 +113,19 @@ int io61_writec(io61_file* f, int ch) {
 
 
 ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
-    /*size_t nwritten = 0;
-    while (nwritten != sz) {
-        if (io61_writec(f, buf[nwritten]) == -1)
-            break;
-        ++nwritten;
-    }
-    if (nwritten != 0 || sz == 0)
-        return nwritten;*/
-
-	/* ** BEGIN WORKING NON-CACHE CODE
-	int ret = write(f->fd, buf, sz);
-	if (ret <= (ssize_t) sz && ret != -1) {
-		return ret;
-	}
-	else
-        return -1;
-	END WORKING NON-CACHE CODE */
 	size_t pos = 0;
 	while (pos != sz) {
-		if (f->pos_tag - f->tag < BFSZ) {
-			ssize_t n = sz-pos;
-			if (BFSZ - (f->pos_tag - f->tag) < n)
-				n = BFSZ - (f->pos_tag - f->tag);
+		if (f->pos_tag - f->tag < BUFSIZ) {
+			ssize_t n = sz - pos;
+			if (BUFSIZ - (f->pos_tag - f->tag) < n)
+				n = BUFSIZ - (f->pos_tag - f->tag);
 			memcpy(&f->cbuf[f->pos_tag - f->tag], &buf[pos], n);
 			f->pos_tag += n;
 			if (f->pos_tag > f->end_tag)
-					f->end_tag = f->pos_tag;
+				f->end_tag = f->pos_tag;
 			pos += n;
-		}
-		assert(f->pos_tag <= f->end_tag);	
-
-		if (f->pos_tag - f->tag == BFSZ)
+		}	
+		if (f->pos_tag - f->tag == BUFSIZ)
 			io61_flush(f);
 	}
 	return pos;
@@ -211,23 +152,35 @@ int io61_flush(io61_file* f) {
 //    Change the file pointer for file `f` to `pos` bytes into the file.
 //    Returns 0 on success and -1 on failure.
 
-int io61_seek(io61_file* f, off_t pos) {
-    /*
-	off_t r = lseek(f->fd, (off_t) pos, SEEK_SET);
-    if (r == (off_t) pos)
-        return 0;
-    else
-        return -1;
-	*/
-	if (pos < f->tag || pos > f->end_tag) {
-		off_t r = lseek(f->fd, (off_t) pos, SEEK_SET);
-		if (r != pos)
+
+int io61_seek(io61_file* f, off_t off) {
+	if (off < f->tag || off > f->end_tag) {
+		off_t aligned_off = off - (off % BUFSIZ);
+		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
+		if (r != aligned_off)
 			return -1;
-		f->tag = f->end_tag = pos;
+		f->tag = f->end_tag = aligned_off;
 	}
-	f->pos_tag = pos;
+	f->pos_tag = off;
 	return 0;
 }
+
+/*
+int io61_seek(io61_file* f, off_t off) {
+    if ((f->mode & O_ACCMODE) != O_RDONLY)
+        io61_flush(f);
+    if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
+		off_t aligned_off = off - (off % BUFSIZ);        
+		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
+        if (r != aligned_off)
+              return -1;
+        f->tag = f->end_tag = aligned_off;
+		return 0;
+    }
+    f->pos_tag = off;
+    return 0;
+}
+*/
 
 
 // You shouldn't need to change these functions.

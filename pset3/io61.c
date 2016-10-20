@@ -20,7 +20,7 @@ struct io61_file {
 	off_t tag; // file offset of first character in cache
 	off_t end_tag; // file offset one past last valid char in cache
 	off_t pos_tag; // file offset of next tag to read in cache
-	int mode;
+	int mode; // file mode (i.e. read only, write only, etc.)
 };
 
 

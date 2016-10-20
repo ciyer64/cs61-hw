@@ -15,14 +15,16 @@
 
 // from storage3X & 4X exercise
 struct io61_file {
-    int fd; // file descriptor
-	unsigned char cbuf[BUFSIZ]; // cache buffer
-	off_t tag; // file offset of first character in cache
-	off_t end_tag; // file offset one past last valid char in cache
-	off_t pos_tag; // file offset of next tag to read in cache
-	int mode; // file mode (i.e. read only, write only, etc.)
+    int fd;
+	unsigned char cbuf[BUFSIZ];
+	off_t tag;
+	off_t end_tag;
+	off_t pos_tag;
+	int f_index;
+	int mode;
 };
 
+size_t io61_readn(io61_file* f, char* buf, ssize_t sz);
 
 // io61_fdopen(fd, mode)
 //    Return a new io61_file for file descriptor `fd`. `mode` is
@@ -34,6 +36,10 @@ io61_file* io61_fdopen(int fd, int mode) {
     io61_file* f = (io61_file*) malloc(sizeof(io61_file));
     f->fd = fd;
     f->mode = mode;
+	f->f_index = 0;
+	f->tag = 0;
+	f->pos_tag = 0;
+	f->end_tag = 0;
     return f;
 }
 
@@ -55,10 +61,15 @@ int io61_close(io61_file* f) {
 
 int io61_readc(io61_file* f) {
     unsigned char buf[1];
-    if (read(f->fd, buf, 1) == 1)
+	ssize_t n = io61_read(f, buf, 1);
+    if (n == 1)
         return buf[0];
     else
         return EOF;
+}
+
+size_t io61_readn(io61_file* f, char* buf, ssize_t sz) {
+	return read(f->fd, buf, sz);
 }
 
 
@@ -88,7 +99,10 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 				return pos ? pos : n;
 		}
 	}
-	return pos;
+	if (pos != 0 || sz == 0 || io61_eof(f))
+		return pos;
+	else
+		return -1;
 }
 
 
@@ -99,7 +113,8 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 int io61_writec(io61_file* f, int ch) {
     unsigned char buf[1];
     buf[0] = ch;
-    if (write(f->fd, buf, 1) == 1)
+	ssize_t n = io61_write(f, buf, 1);
+    if (n == 1)
         return 0;
     else
         return -1;
@@ -139,9 +154,10 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 
 int io61_flush(io61_file* f) {
     //(void) f;
-	if (f->end_tag != f->tag) {
-		ssize_t n = write(f->fd, f->cbuf, f->end_tag - f->tag);
-		assert(n == f->end_tag - f->tag);
+	if (f->end_tag != f->tag || f->mode == O_WRONLY) {
+		//ssize_t n = write(f->fd, f->cbuf, f->end_tag - f->tag);
+		write(f->fd, f->cbuf, f->end_tag - f->tag);
+		//assert(n == f->end_tag - f->tag);
 	}
 	f->pos_tag = f->tag = f->end_tag;
     return 0;
@@ -164,6 +180,22 @@ int io61_seek(io61_file* f, off_t off) {
 	f->pos_tag = off;
 	return 0;
 }
+
+/*
+int io61_seek(io61_file* f, off_t off) {
+	if ((f->mode & O_ACCMODE) != O_RDONLY)
+		io61_flush(f);
+	if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
+		off_t r = lseek(f->fd, off, SEEK_SET);
+		if (r != off)
+			return -1;
+		f->tag = f->end_tag = off;
+	}
+	f->pos_tag = off;
+	return 0;
+}
+*/
+
 
 /*
 int io61_seek(io61_file* f, off_t off) {

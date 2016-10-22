@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <errno.h>
 
-#define BFSZ 4096
+#define BFSZ 8192
 
 // io61.c
 //    YOUR CODE HERE!
@@ -173,6 +173,7 @@ int io61_seek(io61_file* f, off_t off) {
 	f->pos_tag = off;
 	return 0;
 }
+
 
 
 // You shouldn't need to change these functions.

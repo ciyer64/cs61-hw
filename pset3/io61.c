@@ -121,7 +121,9 @@ int io61_writec(io61_file* f, int ch) {
 
 
 ssize_t io61_write(io61_file* f, const char* buf, size_t sz2) {
-	ssize_t sz = sz2;	
+	ssize_t sz = sz2;
+	if (f->mode == O_RDONLY)
+		return -1;	
 	ssize_t pos = 0;
 	while (pos != sz) {
 		if (f->pos_tag - f->tag < BFSZ) {

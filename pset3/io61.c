@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <errno.h>
 
-#define BFSZ 8192
+#define BFSZ 4096
 
 // io61.c
 //    YOUR CODE HERE!

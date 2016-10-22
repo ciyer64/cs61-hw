@@ -176,7 +176,6 @@ int io61_seek(io61_file* f, off_t off) {
 }
 
 
-
 // You shouldn't need to change these functions.
 
 // io61_open_check(filename, mode)

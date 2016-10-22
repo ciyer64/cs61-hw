@@ -147,10 +147,8 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz2) {
 //    data buffered for reading, or do nothing.
 
 int io61_flush(io61_file* f) {
-    //(void) f;
 	if (f->end_tag != f->tag || f->mode == O_WRONLY) {
-		ssize_t n = write(f->fd, f->cbuf, f->end_tag - f->tag);
-		assert(n == f->end_tag - f->tag);
+		write(f->fd, f->cbuf, f->end_tag - f->tag);
 	}
 	f->pos_tag = f->tag = f->end_tag;
     return 0;

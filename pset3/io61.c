@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <errno.h>
 
-#define BUFSIZ 4096
+#define BUFSIZ 8192
 
 // io61.c
 //    YOUR CODE HERE!

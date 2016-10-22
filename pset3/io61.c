@@ -71,11 +71,12 @@ int io61_readc(io61_file* f) {
 //    could be read. Returns -1 if an error occurred before any characters
 //    were read.
 
-ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
-	size_t pos = 0;
+ssize_t io61_read(io61_file* f, char* buf, size_t sz2) {
+	ssize_t sz = sz2;	
+	ssize_t pos = 0;
 	while (pos != sz) {
 		if (f->pos_tag < f->end_tag) {
-			size_t n = sz - pos;
+			ssize_t n = sz - pos;
 			if (n > f->end_tag - f->pos_tag)
 				n = f->end_tag - f->pos_tag;
 			memcpy(&buf[pos], &f->cbuf[f->pos_tag - f->tag], n);
@@ -118,8 +119,9 @@ int io61_writec(io61_file* f, int ch) {
 //    an error occurred before any characters were written.
 
 
-ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
-	size_t pos = 0;
+ssize_t io61_write(io61_file* f, const char* buf, size_t sz2) {
+	ssize_t sz = sz2;	
+	ssize_t pos = 0;
 	while (pos != sz) {
 		if (f->pos_tag - f->tag < BFSZ) {
 			ssize_t n = sz - pos;
@@ -146,7 +148,7 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 int io61_flush(io61_file* f) {
     //(void) f;
 	if (f->end_tag != f->tag || f->mode == O_WRONLY) {
-		ssize_t n = write(f->fd, f->cbuf, f->end_tag - f->tag);
+		write(f->fd, f->cbuf, f->end_tag - f->tag);
 		//write(f->fd, f->cbuf, f->end_tag - f->tag);
 		//assert(n == f->end_tag - f->tag);
 	}

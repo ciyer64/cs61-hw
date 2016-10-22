@@ -44,7 +44,8 @@ io61_file* io61_fdopen(int fd, int mode) {
 //    Close the io61_file `f` and release all its resources.
 
 int io61_close(io61_file* f) {
-    io61_flush(f);
+	if ((f->mode & O_ACCMODE) != O_RDONLY)    
+		io61_flush(f);
     int r = close(f->fd);
     free(f);
     return r;
@@ -57,7 +58,7 @@ int io61_close(io61_file* f) {
 
 int io61_readc(io61_file* f) {
     unsigned char buf[1];
-	ssize_t n = io61_read(f, buf, 1);
+	ssize_t n = io61_read(f, (char*) buf, 1);
     if (n == 1)
         return buf[0];
     else
@@ -105,7 +106,7 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz2) {
 int io61_writec(io61_file* f, int ch) {
     unsigned char buf[1];
     buf[0] = ch;
-	ssize_t n = io61_write(f, buf, 1);
+	ssize_t n = io61_write(f, (char*) buf, 1);
     if (n == 1)
         return 0;
     else

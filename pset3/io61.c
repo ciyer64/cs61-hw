@@ -72,12 +72,12 @@ int io61_readc(io61_file* f) {
 //    could be read. Returns -1 if an error occurred before any characters
 //    were read.
 
-ssize_t io61_read(io61_file* f, char* buf, size_t sz2) {
-	ssize_t sz = sz2;	
+ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
+	ssize_t sz2 = sz;	
 	ssize_t pos = 0;
-	while (pos != sz) {
+	while (pos != sz2) {
 		if (f->pos_tag < f->end_tag) {
-			ssize_t n = sz - pos;
+			ssize_t n = sz2 - pos;
 			if (n > f->end_tag - f->pos_tag)
 				n = f->end_tag - f->pos_tag;
 			memcpy(&buf[pos], &f->cbuf[f->pos_tag - f->tag], n);
@@ -120,14 +120,14 @@ int io61_writec(io61_file* f, int ch) {
 //    an error occurred before any characters were written.
 
 
-ssize_t io61_write(io61_file* f, const char* buf, size_t sz2) {
+ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 	if (f->mode == O_RDONLY)
 		return -1;
-	ssize_t sz = sz2;	
+	ssize_t sz2 = sz;	
 	ssize_t pos = 0;
-	while (pos != sz) {
+	while (pos != sz2) {
 		if (f->pos_tag - f->tag < BFSZ) {
-			ssize_t n = sz - pos;
+			ssize_t n = sz2 - pos;
 			if (BFSZ - (f->pos_tag - f->tag) < n)
 				n = BFSZ - (f->pos_tag - f->tag);
 			memcpy(&f->cbuf[f->pos_tag - f->tag], &buf[pos], n);
@@ -149,9 +149,8 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz2) {
 //    data buffered for reading, or do nothing.
 
 int io61_flush(io61_file* f) {
-	if (f->end_tag != f->tag || f->mode == O_WRONLY) {
+	if (f->end_tag != f->tag || f->mode == O_WRONLY)
 		write(f->fd, f->cbuf, f->end_tag - f->tag);
-	}
 	f->pos_tag = f->tag = f->end_tag;
     return 0;
 }

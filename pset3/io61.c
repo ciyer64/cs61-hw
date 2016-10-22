@@ -20,11 +20,11 @@ struct io61_file {
 	off_t tag;
 	off_t end_tag;
 	off_t pos_tag;
-	int f_index;
+	//int f_index;
 	int mode;
 };
 
-size_t io61_readn(io61_file* f, char* buf, ssize_t sz);
+//size_t io61_readn(io61_file* f, char* buf, ssize_t sz);
 
 // io61_fdopen(fd, mode)
 //    Return a new io61_file for file descriptor `fd`. `mode` is
@@ -36,7 +36,7 @@ io61_file* io61_fdopen(int fd, int mode) {
     io61_file* f = (io61_file*) malloc(sizeof(io61_file));
     f->fd = fd;
     f->mode = mode;
-	f->f_index = 0;
+	//f->f_index = 0;
 	f->tag = 0;
 	f->pos_tag = 0;
 	f->end_tag = 0;
@@ -60,18 +60,18 @@ int io61_close(io61_file* f) {
 //    (which is -1) on error or end-of-file.
 
 int io61_readc(io61_file* f) {
-    unsigned char buf[1];
+    char buf[1];
 	ssize_t n = io61_read(f, buf, 1);
     if (n == 1)
         return buf[0];
     else
         return EOF;
 }
-
+/*
 size_t io61_readn(io61_file* f, char* buf, ssize_t sz) {
 	return read(f->fd, buf, sz);
 }
-
+*/
 
 // io61_read(f, buf, sz)
 //    Read up to `sz` characters from `f` into `buf`. Returns the number of
@@ -80,11 +80,12 @@ size_t io61_readn(io61_file* f, char* buf, ssize_t sz) {
 //    could be read. Returns -1 if an error occurred before any characters
 //    were read.
 
-ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
-	size_t pos = 0;
+ssize_t io61_read(io61_file* f, char* buf, size_t size) {
+	ssize_t pos = 0;
+	ssize_t sz = (ssize_t) size;
 	while (pos != sz) {
 		if (f->pos_tag < f->end_tag) {
-			size_t n = sz - pos;
+			ssize_t n = sz - pos;
 			if (n > f->end_tag - f->pos_tag)
 				n = f->end_tag - f->pos_tag;
 			memcpy(&buf[pos], &f->cbuf[f->pos_tag - f->tag], n);
@@ -100,7 +101,7 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 		}
 	}
 	if (pos != 0 || sz == 0 || io61_eof(f))
-		return pos;
+		return (ssize_t) pos;
 	else
 		return -1;
 }
@@ -111,7 +112,7 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 //    -1 on error.
 
 int io61_writec(io61_file* f, int ch) {
-    unsigned char buf[1];
+    char buf[1];
     buf[0] = ch;
 	ssize_t n = io61_write(f, buf, 1);
     if (n == 1)
@@ -129,6 +130,9 @@ int io61_writec(io61_file* f, int ch) {
 
 ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 	size_t pos = 0;
+	if (f->mode == O_RDONLY)
+		return -1;
+	sz = (ssize_t) sz;
 	while (pos != sz) {
 		if (f->pos_tag - f->tag < BUFSIZ) {
 			ssize_t n = sz - pos;
@@ -155,9 +159,7 @@ ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 int io61_flush(io61_file* f) {
     //(void) f;
 	if (f->end_tag != f->tag || f->mode == O_WRONLY) {
-		//ssize_t n = write(f->fd, f->cbuf, f->end_tag - f->tag);
 		write(f->fd, f->cbuf, f->end_tag - f->tag);
-		//assert(n == f->end_tag - f->tag);
 	}
 	f->pos_tag = f->tag = f->end_tag;
     return 0;
@@ -170,6 +172,8 @@ int io61_flush(io61_file* f) {
 
 
 int io61_seek(io61_file* f, off_t off) {
+	if (((f->mode) & O_ACCMODE) != O_RDONLY)
+		io61_flush(f);
 	if (off < f->tag || off > f->end_tag) {
 		off_t aligned_off = off - (off % BUFSIZ);
 		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
@@ -180,39 +184,6 @@ int io61_seek(io61_file* f, off_t off) {
 	f->pos_tag = off;
 	return 0;
 }
-
-/*
-int io61_seek(io61_file* f, off_t off) {
-	if ((f->mode & O_ACCMODE) != O_RDONLY)
-		io61_flush(f);
-	if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
-		off_t r = lseek(f->fd, off, SEEK_SET);
-		if (r != off)
-			return -1;
-		f->tag = f->end_tag = off;
-	}
-	f->pos_tag = off;
-	return 0;
-}
-*/
-
-
-/*
-int io61_seek(io61_file* f, off_t off) {
-    if ((f->mode & O_ACCMODE) != O_RDONLY)
-        io61_flush(f);
-    if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
-		off_t aligned_off = off - (off % BUFSIZ);        
-		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
-        if (r != aligned_off)
-              return -1;
-        f->tag = f->end_tag = aligned_off;
-		return 0;
-    }
-    f->pos_tag = off;
-    return 0;
-}
-*/
 
 
 // You shouldn't need to change these functions.

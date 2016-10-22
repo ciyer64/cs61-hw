@@ -92,7 +92,7 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz2) {
 				return pos ? pos : n;
 		}
 	}
-	if (pos != 0 || sz == 0 || io61_eof(f))
+	if (sz == 0 || pos != 0 || io61_eof(f))
 		return pos;
 	else
 		return -1;
@@ -164,6 +164,8 @@ int io61_flush(io61_file* f) {
 
 
 int io61_seek(io61_file* f, off_t off) {
+	if ((f->mode & O_ACCMODE) != O_RDONLY)
+		io61_flush(f);
 	if (off < f->tag || off > f->end_tag) {
 		off_t aligned_off = off - (off % BFSZ);
 		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
@@ -174,39 +176,6 @@ int io61_seek(io61_file* f, off_t off) {
 	f->pos_tag = off;
 	return 0;
 }
-
-/*
-int io61_seek(io61_file* f, off_t off) {
-	if ((f->mode & O_ACCMODE) != O_RDONLY)
-		io61_flush(f);
-	if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
-		off_t r = lseek(f->fd, off, SEEK_SET);
-		if (r != off)
-			return -1;
-		f->tag = f->end_tag = off;
-	}
-	f->pos_tag = off;
-	return 0;
-}
-*/
-
-
-/*
-int io61_seek(io61_file* f, off_t off) {
-    if ((f->mode & O_ACCMODE) != O_RDONLY)
-        io61_flush(f);
-    if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
-		off_t aligned_off = off - (off % BFSZ);        
-		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
-        if (r != aligned_off)
-              return -1;
-        f->tag = f->end_tag = aligned_off;
-		return 0;
-    }
-    f->pos_tag = off;
-    return 0;
-}
-*/
 
 
 // You shouldn't need to change these functions.

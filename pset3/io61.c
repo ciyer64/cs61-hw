@@ -4,7 +4,7 @@
 #include <limits.h>
 #include <errno.h>
 
-#define BUFSIZ 8192
+#define BFSZ 8192
 
 // io61.c
 //    YOUR CODE HERE!
@@ -16,7 +16,7 @@
 // from storage3X & 4X exercise
 struct io61_file {
     int fd;
-	unsigned char cbuf[BUFSIZ];
+	unsigned char cbuf[BFSZ];
 	off_t tag;
 	off_t end_tag;
 	off_t pos_tag;
@@ -56,7 +56,7 @@ int io61_close(io61_file* f) {
 //    (which is -1) on error or end-of-file.
 
 int io61_readc(io61_file* f) {
-    char buf[1];
+    unsigned char buf[1];
 	ssize_t n = io61_read(f, buf, 1);
     if (n == 1)
         return buf[0];
@@ -83,7 +83,7 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 			pos += n;
 		} else {
 			f->tag = f->end_tag;
-			ssize_t n = read(f->fd, f->cbuf, BUFSIZ);
+			ssize_t n = read(f->fd, f->cbuf, BFSZ);
 			if (n > 0)
 				f->end_tag += n;
 			else
@@ -102,7 +102,7 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 //    -1 on error.
 
 int io61_writec(io61_file* f, int ch) {
-    char buf[1];
+    unsigned char buf[1];
     buf[0] = ch;
 	ssize_t n = io61_write(f, buf, 1);
     if (n == 1)
@@ -121,17 +121,17 @@ int io61_writec(io61_file* f, int ch) {
 ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
 	size_t pos = 0;
 	while (pos != sz) {
-		if (f->pos_tag - f->tag < BUFSIZ) {
+		if (f->pos_tag - f->tag < BFSZ) {
 			ssize_t n = sz - pos;
-			if (BUFSIZ - (f->pos_tag - f->tag) < n)
-				n = BUFSIZ - (f->pos_tag - f->tag);
+			if (BFSZ - (f->pos_tag - f->tag) < n)
+				n = BFSZ - (f->pos_tag - f->tag);
 			memcpy(&f->cbuf[f->pos_tag - f->tag], &buf[pos], n);
 			f->pos_tag += n;
 			if (f->pos_tag > f->end_tag)
 				f->end_tag = f->pos_tag;
 			pos += n;
 		}	
-		if (f->pos_tag - f->tag == BUFSIZ)
+		if (f->pos_tag - f->tag == BFSZ)
 			io61_flush(f);
 	}
 	return pos;
@@ -162,7 +162,7 @@ int io61_flush(io61_file* f) {
 
 int io61_seek(io61_file* f, off_t off) {
 	if (off < f->tag || off > f->end_tag) {
-		off_t aligned_off = off - (off % BUFSIZ);
+		off_t aligned_off = off - (off % BFSZ);
 		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
 		if (r != aligned_off)
 			return -1;
@@ -193,7 +193,7 @@ int io61_seek(io61_file* f, off_t off) {
     if ((f->mode & O_ACCMODE) != O_RDONLY)
         io61_flush(f);
     if (off < f->tag || off > f->end_tag || (f->mode & O_ACCMODE) != O_RDONLY) {
-		off_t aligned_off = off - (off % BUFSIZ);        
+		off_t aligned_off = off - (off % BFSZ);        
 		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
         if (r != aligned_off)
               return -1;

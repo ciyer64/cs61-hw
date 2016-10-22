@@ -13,7 +13,7 @@
 // io61_file
 //    Data structure for io61 file wrappers. Add your own stuff.
 
-// from storage3X & 4X exercise
+// from storage3X & 4X exercises
 struct io61_file {
     int fd;
 	unsigned char cbuf[BFSZ];

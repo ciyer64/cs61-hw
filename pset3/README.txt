@@ -4,7 +4,8 @@ YOU MUST FILL OUT THIS FILE BEFORE SUBMITTING!
 ** DO NOT PUT YOUR NAME OR YOUR PARTNER'S NAME! **
 
 OTHER COLLABORATORS AND CITATIONS (if any):
-Avi Saraf, Dion Hagan
+Collaborated with Avi Saraf and Dion Hagan
+Cited code from Exercises 3X and 4X
 
 
 KNOWN BUGS (if any):

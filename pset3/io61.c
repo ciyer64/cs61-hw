@@ -16,11 +16,11 @@
 // from storage3X & 4X exercises
 struct io61_file {
     int fd;
-	unsigned char cbuf[BFSZ];
-	off_t tag;
-	off_t end_tag;
-	off_t pos_tag;
-	int mode;
+	unsigned char cbuf[BFSZ]; // Cache
+	off_t tag; // file offset of the first character in the cache
+	off_t end_tag; // file offset of the first invalid position in the cache
+	off_t pos_tag; // file offset of the next char to write
+	int mode; // file mode (Read, write, etc.)
 };
 
 // io61_fdopen(fd, mode)
@@ -44,6 +44,7 @@ io61_file* io61_fdopen(int fd, int mode) {
 //    Close the io61_file `f` and release all its resources.
 
 int io61_close(io61_file* f) {
+	// if it's not read only, flush
 	if ((f->mode & O_ACCMODE) != O_RDONLY)    
 		io61_flush(f);
     int r = close(f->fd);
@@ -73,11 +74,15 @@ int io61_readc(io61_file* f) {
 //    were read.
 
 ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
-	ssize_t sz2 = sz;	
+	ssize_t sz2 = sz;
+	// initialize the number of bytes read so far	
 	ssize_t pos = 0;
 	while (pos != sz2) {
+		// check if enough space to offset for next char
 		if (f->pos_tag < f->end_tag) {
+			// calculate number of bytes left to write
 			ssize_t n = sz2 - pos;
+			// check if bytes left exceeds space; readjust if necessary
 			if (n > f->end_tag - f->pos_tag)
 				n = f->end_tag - f->pos_tag;
 			memcpy(&buf[pos], &f->cbuf[f->pos_tag - f->tag], n);
@@ -92,8 +97,10 @@ ssize_t io61_read(io61_file* f, char* buf, size_t sz) {
 				return pos ? pos : n;
 		}
 	}
+	// if end of file or no bytes to read or valid read
 	if (sz == 0 || pos != 0 || io61_eof(f))
 		return pos;
+	// error case
 	else
 		return -1;
 }
@@ -121,21 +128,27 @@ int io61_writec(io61_file* f, int ch) {
 
 
 ssize_t io61_write(io61_file* f, const char* buf, size_t sz) {
+	// check if mode is read only
 	if (f->mode == O_RDONLY)
 		return -1;
 	ssize_t sz2 = sz;	
 	ssize_t pos = 0;
 	while (pos != sz2) {
+		// check if there is space in the buffer to write data
 		if (f->pos_tag - f->tag < BFSZ) {
+			// calculate bytes left to write
 			ssize_t n = sz2 - pos;
-			if (BFSZ - (f->pos_tag - f->tag) < n)
+			// check if bytes left to write exceeds space
+			if (n > BFSZ - (f->pos_tag - f->tag))
 				n = BFSZ - (f->pos_tag - f->tag);
 			memcpy(&f->cbuf[f->pos_tag - f->tag], &buf[pos], n);
 			f->pos_tag += n;
+			// adjust end as necessary
 			if (f->pos_tag > f->end_tag)
 				f->end_tag = f->pos_tag;
 			pos += n;
-		}	
+		}
+		// if the buffer is full, flush
 		if (f->pos_tag - f->tag == BFSZ)
 			io61_flush(f);
 	}
@@ -161,17 +174,17 @@ int io61_flush(io61_file* f) {
 //    Returns 0 on success and -1 on failure.
 
 
-int io61_seek(io61_file* f, off_t off) {
+int io61_seek(io61_file* f, off_t pos) {
 	if ((f->mode & O_ACCMODE) != O_RDONLY)
 		io61_flush(f);
-	if (off < f->tag || off > f->end_tag) {
-		off_t aligned_off = off - (off % BFSZ);
+	if (pos < f->tag || pos > f->end_tag) {
+		off_t aligned_off = pos - (pos % BFSZ);
 		off_t r = lseek(f->fd, aligned_off, SEEK_SET);
 		if (r != aligned_off)
 			return -1;
 		f->tag = f->end_tag = aligned_off;
 	}
-	f->pos_tag = off;
+	f->pos_tag = pos;
 	return 0;
 }
 

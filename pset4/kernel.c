@@ -86,6 +86,14 @@ void kernel(const char* command) {
     console_clear();
     timer_init(HZ);
 
+    // Set the permissions for kernel memory
+    virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
+	0XB8000, PTE_P | PTE_W, NULL);
+    virtual_memory_map(kernel_pagetable, (0xB8000+PAGESIZE), (0xB8000+PAGESIZE), 
+        (PROC_START_ADDR-0xB8000+PAGESIZE), PTE_P | PTE_W, NULL);
+    virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
+	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+
     // Set up process descriptors
     memset(processes, 0, sizeof(processes));
     for (pid_t i = 0; i < NPROC; i++) {
@@ -196,7 +204,7 @@ void exception(x86_64_registers* reg) {
     case INT_SYS_PAGE_ALLOC: {
         uintptr_t addr = current->p_registers.reg_rdi;
         int r = assign_physical_page(addr, current->p_pid);
-        if (r >= 0)
+        if (r >= PROC_START_ADDR)
             virtual_memory_map(current->p_pagetable, addr, addr,
                                PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
         current->p_registers.reg_rax = r;

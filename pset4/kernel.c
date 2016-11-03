@@ -87,7 +87,7 @@ void kernel(const char* command) {
     timer_init(HZ);
 
 
-/*****************************Code written by Frank************************/
+/*****************************Code written by Frank (Frank 1/3)************************/
     // Set the permissions for kernel memory
     virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
 	0XB8000, PTE_P | PTE_W, NULL);
@@ -143,7 +143,7 @@ void process_setup(pid_t pid, int program_number) {
     processes[pid].p_state = P_RUNNABLE;
 }
 
-/**************************Code written by Frank***********************/
+/**************************Code written by Frank (Frank 2/3)***********************/
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     // find pagetable to copy (kernel pagetable)
     // this not necessary - pagetable given as argument
@@ -261,7 +261,7 @@ void exception(x86_64_registers* reg) {
         uintptr_t addr = current->p_registers.reg_rdi;
         int r = assign_physical_page(addr, current->p_pid);
         if (r >= PROC_START_ADDR)	// this initially r>=0. Now it only affects
-					// the memory after PROC_START_ADDR (changed by Frank)
+					// the memory after PROC_START_ADDR (Frank 3/3)
             virtual_memory_map(current->p_pagetable, addr, addr,
                                PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
         current->p_registers.reg_rax = r;

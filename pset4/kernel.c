@@ -86,6 +86,8 @@ void kernel(const char* command) {
     console_clear();
     timer_init(HZ);
 
+
+/*****************************Code written by Frank************************/
     // Set the permissions for kernel memory
     virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
 	0XB8000, PTE_P | PTE_W, NULL);
@@ -93,6 +95,7 @@ void kernel(const char* command) {
         (PROC_START_ADDR-0xB8000+PAGESIZE), PTE_P | PTE_W, NULL);
     virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
 	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+/**********************end of code written by Frank************************/
 
     // Set up process descriptors
     memset(processes, 0, sizeof(processes));
@@ -120,6 +123,13 @@ void kernel(const char* command) {
 //    %rip and %rsp, gives it a stack page, and marks it as runnable.
 
 void process_setup(pid_t pid, int program_number) {
+
+
+    // TO INSERT
+    // need to include code that changes the returned pagetable
+    // from copy_pagetable to meet the requirements we need
+
+
     process_init(&processes[pid], 0);
     processes[pid].p_pagetable = kernel_pagetable;
     ++pageinfo[PAGENUMBER(kernel_pagetable)].refcount;
@@ -133,6 +143,52 @@ void process_setup(pid_t pid, int program_number) {
     processes[pid].p_state = P_RUNNABLE;
 }
 
+/**************************Code written by Frank***********************/
+x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
+    // find pagetable to copy (kernel pagetable)
+    // this not necessary - pagetable given as argument
+
+    // find a free page to use as destination using pageinfo array
+    // (iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0)
+    int pn;   // int used in for loop below
+
+    for (int i = PROC_START_ADDR; i > MEMSIZE_PHYSICAL; i + PAGESIZE) {
+	pn = pagenumber(i);
+	if physical_pageinfo[pn].refcount = 0
+	    x86_64_pagetable* free_page = pageaddress(pn);
+	    break;
+    }   // now we have the address of a free physical page
+	// that we can copy into 
+
+    // next we have to copy relevant parts of kernel pagetable into destination
+	// copy pre-process data from kernel pagetable
+	    // need to do virtual_memory_lookup AND THEN virtual_memory_map...
+	    // ...for each address in kernel data?
+    for (int i = 0x0; i > PROC_START_ADDR; i + PAGESIZE) {
+	// need virtual_memory_lookup and virtual_memory_map in this loop
+
+	// this sets a struct with info about pagetable at i
+	// see kernel.h for details on virtual_memory_lookup
+	vamapping virt_lookup = virtual_memory_lookup(pagetable, i);
+
+	// I think the "allocator function" referenced in the pset is needed
+	// before virtual_memory_map
+
+	/********************allocator function code here*******************/
+
+	// I'm not sure these arguments are right because I think this function
+	// call depends on the allocator function.
+	virtual_memory_map(free_page, i, i, PAGESIZE, PTE_P | PTE_W, NULL);\
+    }
+
+
+	// after loop, set all entries after the kernel data in new page table to 0
+
+
+    // eventually return the allocated and initialized page table
+    return free_page;
+}
+/*******************end of code written by Frank************************/
 
 // assign_physical_page(addr, owner)
 //    Allocates the page with physical address `addr` to the given owner.
@@ -204,7 +260,8 @@ void exception(x86_64_registers* reg) {
     case INT_SYS_PAGE_ALLOC: {
         uintptr_t addr = current->p_registers.reg_rdi;
         int r = assign_physical_page(addr, current->p_pid);
-        if (r >= PROC_START_ADDR)
+        if (r >= PROC_START_ADDR)	// this initially r>=0. Now it only affects
+					// the memory after PROC_START_ADDR (changed by Frank)
             virtual_memory_map(current->p_pagetable, addr, addr,
                                PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
         current->p_registers.reg_rax = r;

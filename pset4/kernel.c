@@ -121,15 +121,16 @@ x86_64_pagetable* p_allocator() {
     // (iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0)
     int pn = 0;   // int used in for loop below
 
-    while (physical_pageinfo[pn].refcount != 0) {
+    while (pageinfo[pn].refcount != 0) {
 	pn++;
 	if (pn == NPAGES)
 	    return NULL;
     }
+	
+	x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
+    memset(addr, 0, PAGESIZE);
 
-    memset(PAGEADDRESS(pn), 0, PAGESIZE);
-
-    return PAGEADDRESS(pn);
+    return addr;
 
 /*
     for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
@@ -146,6 +147,7 @@ x86_64_pagetable* p_allocator() {
 
 /**************************Code written by Frank (Frank 2/3)***********************/
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
+	memset(pagetable, 0, PAGESIZE);
     // find pagetable to copy (kernel pagetable)
     // this not necessary - pagetable given as argument
  

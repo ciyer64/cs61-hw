@@ -53,6 +53,8 @@ void run(proc* p) __attribute__((noreturn));
 typedef struct physical_pageinfo {
     int8_t owner;
     int8_t refcount;
+} physical_pageinfo;
+
 static physical_pageinfo pageinfo[PAGENUMBER(MEMSIZE_PHYSICAL)];
 
 typedef enum pageowner {
@@ -129,11 +131,11 @@ void process_setup(pid_t pid, int program_number) {
 
 
     process_init(&processes[pid], 0);
-//    processes[pid].p_pagetable = kernel_pagetable;
+  //  processes[pid].p_pagetable = kernel_pagetable;
     processes[pid].p_pagetable = copy_pagetable(kernel_pagetable, pid); // copying pagetable here
-    for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
-	processes[pid].p_pagetable[i] = 0;
-    }
+    //for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
+//	processes[pid].p_pagetable[i] = 0;
+//    }
     ++pageinfo[PAGENUMBER(kernel_pagetable)].refcount;
     int r = program_load(&processes[pid], program_number, NULL);
     assert(r >= 0);
@@ -168,7 +170,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	// This uses allocator function and virt_lookup to make a new mapping
 	// 
 	virtual_memory_map(free_page, i, virt_lookup.pa, PAGESIZE, 
-	    virt_lookup.permissions, p_allocator);
+	    virt_lookup.perm, p_allocator);
     }
 
     //for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {

@@ -131,6 +131,9 @@ void process_setup(pid_t pid, int program_number) {
     process_init(&processes[pid], 0);
 //    processes[pid].p_pagetable = kernel_pagetable;
     processes[pid].p_pagetable = copy_pagetable(kernel_pagetable, pid); // copying pagetable here
+    for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
+	processes[pid].p_pagetable[i] = 0;
+    }
     ++pageinfo[PAGENUMBER(kernel_pagetable)].refcount;
     int r = program_load(&processes[pid], program_number, NULL);
     assert(r >= 0);
@@ -148,14 +151,14 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     // find pagetable to copy (kernel pagetable)
     // this not necessary - pagetable given as argument
  
-    x86_64_pagetable* free_page = p_allocator();
+    x86_64_pagetable* free_page = p_allocator(); 
     if (free_page == NULL)
 	return -1;
     // next we have to copy relevant parts of kernel pagetable into destination
 	// copy pre-process data from kernel pagetable
 	    // need to do virtual_memory_lookup AND THEN virtual_memory_map...
 	    // ...for each address in kernel data?
-    for (int i = 0x0; i > PROC_START_ADDR; i += PAGESIZE) {
+    for (int i = 0x0; i < PROC_START_ADDR; i += PAGESIZE) {
 	// need virtual_memory_lookup and virtual_memory_map in this loop
 
 	// this sets a struct with info about pagetable at i
@@ -165,11 +168,14 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	// This uses allocator function and virt_lookup to make a new mapping
 	// 
 	virtual_memory_map(free_page, i, virt_lookup.pa, PAGESIZE, 
-	    virt_lookup.permissions, p_allocator());
+	    virt_lookup.permissions, p_allocator);
     }
 
+    //for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
+    //	vmapping
+    //}
 
-	// after loop, set all entries after the kernel data in new page table to 0
+    // after loop, set all entries after the kernel data in new page table to 0
 
 
     // eventually return the allocated and initialized page table
@@ -181,20 +187,29 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 x86_64_pagetable* p_allocator() {
 // find a free page to use as destination using pageinfo array
     // (iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0)
-    int pn;   // int used in for loop below
+    int pn = 0;   // int used in for loop below
 
+    while (physical_pageinfo[pn].refcount != 0) {
+	pn++;
+	if (pn = NPAGES)
+	    return NULL
+    }
+
+    memset(PAGEADDRESS(pn), 0, MEMSIZE_PHYSICAL);
+
+    return PAGEADDRESS(pn);
+
+/*
     for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
 	pn = PAGENUMBER(i);
 	if (physical_pageinfo[pn].refcount = 0) {
 	    x86_64_pagetable* free_page = i;
-	    break;
+	    return free_page;
 	}
 	else if (i == MEMSIZE_PHYSICAL - 1)
 	    return NULL;
     }   // now we have the address of a free physical page
-	// that we can copy into 
-
-    return free_page;
+	// that we can copy into */
 }
 
 /*******************end of code written by Frank************************/

@@ -282,12 +282,12 @@ void exception(x86_64_registers* reg) {
         break;                  /* will not be reached */
 
     case INT_SYS_PAGE_ALLOC: {
-        intptr_t fpage = (intptr_t) p_allocator();
 		uintptr_t addr = current->p_registers.reg_rdi;
-        owner_global = current->p_pid;
+		owner_global = current->p_pid;
+		intptr_t fpage = (intptr_t) p_allocator();
 		//int r = assign_physical_page(addr, current->p_pid);
         if (fpage >= 0) {
-            virtual_memory_map(current->p_pagetable, addr, (uintptr_t) fpage,
+            virtual_memory_map(current->p_pagetable, addr, fpage,
             	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
         	current->p_registers.reg_rax = 0;
 		} else

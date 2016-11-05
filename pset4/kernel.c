@@ -136,13 +136,14 @@ x86_64_pagetable* p_allocator() {
 
     while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
 		if (pn > NPAGES)
-	    	return NULL;
+	    	return (x86_64_pagetable*) -1;
 		pn++;
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     //memset(addr, 0, PAGESIZE);
     assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
 	memset(addr, 0, PAGESIZE);
+
     return addr;
 }
 
@@ -151,7 +152,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	owner_global = owner;
     // find pagetable to copy (kernel pagetable)
     x86_64_pagetable* free_page = p_allocator();
-    if (free_page == NULL)
+    if (free_page == (x86_64_pagetable*) -1)
 		return NULL;
     // next we have to copy relevant parts of kernel pagetable into destination
 	// copy pre-process data from kernel pagetable
@@ -278,12 +279,11 @@ void exception(x86_64_registers* reg) {
         break;                  /* will not be reached */
 
     case INT_SYS_PAGE_ALLOC: {
-        
+        x86_64_pagetable* fpage = p_allocator();
 		uintptr_t addr = current->p_registers.reg_rdi;
         owner_global = current->p_pid;
 		int r = assign_physical_page(addr, current->p_pid);
-        if (r >= 0)	// this initially r>=0. Now it only affects
-					// the memory after PROC_START_ADDR (Frank 3/3)
+        if (r >= 0)
             virtual_memory_map(current->p_pagetable, addr, addr,
             	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
         current->p_registers.reg_rax = r;

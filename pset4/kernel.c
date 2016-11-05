@@ -122,10 +122,10 @@ void kernel(const char* command) {
 x86_64_pagetable* p_allocator() {
     // iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0
     int pn = 0;   // page number incrementer
-    while (pageinfo[pn].refcount != 0) {
-	pn++;
-	if (pn == NPAGES)
-	    return NULL;
+    while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
+		if (pn > NPAGES)
+	    	return NULL;
+		pn++;
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     memset(addr, 0, PAGESIZE);
@@ -135,14 +135,15 @@ x86_64_pagetable* p_allocator() {
 
 /**************************Code written by Frank (Frank 2/3)***********************/
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
+	owner_global = owner;
     // find pagetable to copy (kernel pagetable)
     x86_64_pagetable* free_page = p_allocator(); 
     if (free_page == NULL)
 		return NULL;
     // next we have to copy relevant parts of kernel pagetable into destination
 	// copy pre-process data from kernel pagetable
+	//i < MEMSIZE_VIRTUAL
     for (int i = 0x0; i < MEMSIZE_VIRTUAL; i += PAGESIZE) {
-		// this sets a struct with info about pagetable at i
 		// see kernel.h for details on virtual_memory_lookup
 		vamapping virt_lookup = virtual_memory_lookup(pagetable, i);
 

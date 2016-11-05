@@ -113,18 +113,20 @@ void kernel(const char* command) {
     else
         for (pid_t i = 1; i <= 4; ++i)
             process_setup(i, i - 1);
-
-	//virtual_memory_map(kernel_pagetable, 0, 0, PROC_START_ADDR,
-	//	PTE_P | PTE_W, NULL);
-	//virtual_memory_map(kernel_pagetable, (uintptr_t) console, (uintptr_t) console,
-	//	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);	
+	/*
+	virtual_memory_map(kernel_pagetable, 0, 0, PROC_START_ADDR,
+		PTE_P | PTE_W, NULL);
+	virtual_memory_map(kernel_pagetable, (uintptr_t) console, (uintptr_t) console,
+		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);	
+	*/
+	
 	virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
 		(uintptr_t) console, PTE_P | PTE_W, NULL);
     virtual_memory_map(kernel_pagetable, (0xB8000+PAGESIZE), (0xB8000+PAGESIZE), 
         (PROC_START_ADDR-0xB8000-PAGESIZE), PTE_P | PTE_W, NULL);
     virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
 		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-
+	
     // Switch to the first process using run()
     run(&processes[1]);
 }
@@ -141,9 +143,10 @@ x86_64_pagetable* p_allocator() {
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     //memset(addr, 0, PAGESIZE);
-    assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
-	memset(addr, 0, PAGESIZE);
 
+	assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+
+    memset(addr, 0, PAGESIZE);
     return addr;
 }
 
@@ -279,14 +282,16 @@ void exception(x86_64_registers* reg) {
         break;                  /* will not be reached */
 
     case INT_SYS_PAGE_ALLOC: {
-        x86_64_pagetable* fpage = p_allocator();
+        intptr_t fpage = (intptr_t) p_allocator();
 		uintptr_t addr = current->p_registers.reg_rdi;
         owner_global = current->p_pid;
-		int r = assign_physical_page(addr, current->p_pid);
-        if (r >= 0)
-            virtual_memory_map(current->p_pagetable, addr, addr,
+		//int r = assign_physical_page(addr, current->p_pid);
+        if (fpage >= 0) {
+            virtual_memory_map(current->p_pagetable, addr, (uintptr_t) fpage,
             	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-        current->p_registers.reg_rax = r;
+        	current->p_registers.reg_rax = 0;
+		} else
+        	current->p_registers.reg_rax = -1;
         break;
     }
 

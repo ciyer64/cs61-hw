@@ -92,11 +92,11 @@ void kernel(const char* command) {
 /*****************************Code written by Frank (Frank 1/3)************************/
     // Set the permissions for kernel memory
     virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
-	0XB8000, PTE_P | PTE_W, NULL);
+	(uintptr_t) console, PTE_P | PTE_W, NULL);
     virtual_memory_map(kernel_pagetable, (0xB8000+PAGESIZE), (0xB8000+PAGESIZE), 
-        (PROC_START_ADDR-0xB8000+PAGESIZE), PTE_P | PTE_W, NULL);
-    virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
-	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+        (PROC_START_ADDR-0xB8000-PAGESIZE), PTE_P | PTE_W, NULL);
+    //virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
+	//PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
 /**********************end of code written by Frank************************/
 
     // Set up process descriptors
@@ -118,71 +118,40 @@ void kernel(const char* command) {
     run(&processes[1]);
 }
 
-x86_64_pagetable* p_allocator() {
 // find a free page to use as destination using pageinfo array
-    // (iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0)
-    int pn = 0;   // int used in for loop below
-
+x86_64_pagetable* p_allocator() {
+    // iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0
+    int pn = 0;   // page number incrementer
     while (pageinfo[pn].refcount != 0) {
 	pn++;
 	if (pn == NPAGES)
 	    return NULL;
     }
-	
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     memset(addr, 0, PAGESIZE);
-
     assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
-    
     return addr;
-
-/*
-    for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
-	pn = PAGENUMBER(i);
-	if (physical_pageinfo[pn].refcount = 0) {
-	    x86_64_pagetable* free_page = i;
-	    return free_page;
-	}
-	else if (i == MEMSIZE_PHYSICAL - 1)
-	    return NULL;
-    }   // now we have the address of a free physical page
-	// that we can copy into */
 }
 
 /**************************Code written by Frank (Frank 2/3)***********************/
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
-   // memset(pagetable, 0, PAGESIZE);
     // find pagetable to copy (kernel pagetable)
-    // this not necessary - pagetable given as argument
- 
     x86_64_pagetable* free_page = p_allocator(); 
     if (free_page == NULL)
-	return NULL;
+		return NULL;
     // next we have to copy relevant parts of kernel pagetable into destination
 	// copy pre-process data from kernel pagetable
-	    // need to do virtual_memory_lookup AND THEN virtual_memory_map...
-	    // ...for each address in kernel data?
     for (int i = 0x0; i < MEMSIZE_VIRTUAL; i += PAGESIZE) {
-	// need virtual_memory_lookup and virtual_memory_map in this loop
+		// this sets a struct with info about pagetable at i
+		// see kernel.h for details on virtual_memory_lookup
+		vamapping virt_lookup = virtual_memory_lookup(pagetable, i);
 
-	// this sets a struct with info about pagetable at i
-	// see kernel.h for details on virtual_memory_lookup
-	vamapping virt_lookup = virtual_memory_lookup(pagetable, i);
-
-	// This uses allocator function and virt_lookup to make a new mapping
-	// 
-	virtual_memory_map(free_page, i, virt_lookup.pa, PAGESIZE, 
-	    virt_lookup.perm, p_allocator);
+		// This uses allocator function and virt_lookup to make a new mapping
+		virtual_memory_map(free_page, i, virt_lookup.pa, PAGESIZE, 
+			virt_lookup.perm, p_allocator);
     }
 
-    //for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
-    //	vmapping
-    //}
-
-    // after loop, set all entries after the kernel data in new page table to 0
-
-
-    // eventually return the allocated and initialized page table
+    // return the allocated and initialized page table
     return free_page;
 }
 
@@ -192,34 +161,29 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 //    %rip and %rsp, gives it a stack page, and marks it as runnable.
 
 void process_setup(pid_t pid, int program_number) {
-
     owner_global = pid;
-    // TO INSERT
-    // need to include code that changes the returned pagetable
-    // from copy_pagetable to meet the requirements we need
-
-    for (int i = 1; i <=4; i++) {
-	if (pid == (pid_t) i) {
-	    virtual_memory_map(processes[pid].p_pagetable, 0x100000 + (i-1)*PROC_SIZE, 
-		0x100000 + i*PROC_SIZE, PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-	}
-	else
-	    virtual_memory_map(processes[pid].p_pagetable, 0x100000 + (i-1)*PROC_SIZE, 
-		0x100000 + i*PROC_SIZE, PAGESIZE, PTE_P | PTE_W, NULL);
-    }
-
-
     process_init(&processes[pid], 0);
-  //  processes[pid].p_pagetable = kernel_pagetable;
     processes[pid].p_pagetable = copy_pagetable(kernel_pagetable, pid); // copying pagetable here
-    //for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
-//	processes[pid].p_pagetable[i] = 0;
-//    }
+    for (int i = 0; i < 4; i++) {
+		if (pid == (pid_t) i + 1) {
+	    	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR + i*PROC_SIZE, 
+			PROC_START_ADDR + i*PROC_SIZE, PROC_SIZE, PTE_P | PTE_W | PTE_U, p_allocator);
+		}
+		else {
+	    	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR + i*PROC_SIZE, 
+			PROC_START_ADDR + i*PROC_SIZE, PROC_SIZE, 0, p_allocator);
+		}
+    }
+	/*
+	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR, PROC_START_ADDR,
+		MEMSIZE_PHYSICAL - PROC_START_ADDR, 0, NULL);
+	virtual_memory_map(processes[pid].p_pagetable, (uintptr_t) console, (uintptr_t) console,
+		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+	*/
     int r = program_load(&processes[pid], program_number, NULL);
     assert(r >= 0);
     processes[pid].p_registers.reg_rsp = PROC_START_ADDR + PROC_SIZE * pid;
     uintptr_t stack_page = processes[pid].p_registers.reg_rsp - PAGESIZE;
-//    uintptr_t stack_page = copy_pagetable(kernel_pagetable, pid);	// by Frank
     assign_physical_page(stack_page, pid);
     virtual_memory_map(processes[pid].p_pagetable, stack_page, stack_page,
                        PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);

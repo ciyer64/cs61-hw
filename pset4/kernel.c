@@ -114,10 +114,16 @@ void kernel(const char* command) {
         for (pid_t i = 1; i <= 4; ++i)
             process_setup(i, i - 1);
 
-	virtual_memory_map(kernel_pagetable, 0, 0, PROC_START_ADDR,
-		PTE_P | PTE_W, NULL);
-	virtual_memory_map(kernel_pagetable, (uintptr_t) console, (uintptr_t) console,
-		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);	
+	//virtual_memory_map(kernel_pagetable, 0, 0, PROC_START_ADDR,
+	//	PTE_P | PTE_W, NULL);
+	//virtual_memory_map(kernel_pagetable, (uintptr_t) console, (uintptr_t) console,
+	//	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);	
+	virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
+		(uintptr_t) console, PTE_P | PTE_W, NULL);
+    virtual_memory_map(kernel_pagetable, (0xB8000+PAGESIZE), (0xB8000+PAGESIZE), 
+        (PROC_START_ADDR-0xB8000-PAGESIZE), PTE_P | PTE_W, NULL);
+    virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
+		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
 
     // Switch to the first process using run()
     run(&processes[1]);

@@ -184,18 +184,7 @@ void process_setup(pid_t pid, int program_number) {
 
     process_init(&processes[pid], 0);
     processes[pid].p_pagetable = copy_pagetable(kernel_pagetable, pid); // copying pagetable here
-    /*
-	for (int i = 0; i < 4; i++) {
-		if (pid == (pid_t) i + 1) {
-	    	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR + i*PROC_SIZE, 
-			PROC_START_ADDR + i*PROC_SIZE, PROC_SIZE, PTE_P | PTE_W | PTE_U, p_allocator);
-		}
-		else {
-	    	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR + i*PROC_SIZE, 
-			PROC_START_ADDR + i*PROC_SIZE, PROC_SIZE, 0, p_allocator);
-		}
-    }
-	*/
+
 	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR, PROC_START_ADDR,
 		MEMSIZE_PHYSICAL - PROC_START_ADDR, 0, NULL);
 	virtual_memory_map(processes[pid].p_pagetable, (uintptr_t) console, (uintptr_t) console,
@@ -203,11 +192,14 @@ void process_setup(pid_t pid, int program_number) {
 
     int r = program_load(&processes[pid], program_number, NULL);
     assert(r >= 0);
-    processes[pid].p_registers.reg_rsp = PROC_START_ADDR + PROC_SIZE * pid;
-    uintptr_t stack_page = processes[pid].p_registers.reg_rsp - PAGESIZE;
-    assign_physical_page(stack_page, pid);
-    virtual_memory_map(processes[pid].p_pagetable, stack_page, stack_page,
-                       PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+    //processes[pid].p_registers.reg_rsp = PROC_START_ADDR + PROC_SIZE * pid;
+    processes[pid].p_registers.reg_rsp = MEMSIZE_VIRTUAL;
+    //uintptr_t stack_page = processes[pid].p_registers.reg_rsp - PAGESIZE;
+	uintptr_t stack_page = (uintptr_t) p_allocator();
+    //assign_physical_page(stack_page, pid);
+    virtual_memory_map(processes[pid].p_pagetable, 
+		MEMSIZE_VIRTUAL - PAGESIZE, stack_page, PAGESIZE, 
+		PTE_P | PTE_W | PTE_U, p_allocator);
     processes[pid].p_state = P_RUNNABLE;
 }
 

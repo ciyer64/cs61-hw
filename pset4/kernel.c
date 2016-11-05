@@ -80,6 +80,8 @@ void memshow_virtual_animate(void);
 
 static void process_setup(pid_t pid, int program_number);
 
+int8_t owner_global = 0;
+
 void kernel(const char* command) {
     hardware_init();
     pageinfo_init();
@@ -127,9 +129,11 @@ x86_64_pagetable* p_allocator() {
 	    return NULL;
     }
 	
-	x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
+    x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     memset(addr, 0, PAGESIZE);
 
+    assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+    
     return addr;
 
 /*
@@ -147,7 +151,7 @@ x86_64_pagetable* p_allocator() {
 
 /**************************Code written by Frank (Frank 2/3)***********************/
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
-	memset(pagetable, 0, PAGESIZE);
+   // memset(pagetable, 0, PAGESIZE);
     // find pagetable to copy (kernel pagetable)
     // this not necessary - pagetable given as argument
  
@@ -158,7 +162,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	// copy pre-process data from kernel pagetable
 	    // need to do virtual_memory_lookup AND THEN virtual_memory_map...
 	    // ...for each address in kernel data?
-    for (int i = 0x0; i < PROC_START_ADDR; i += PAGESIZE) {
+    for (int i = 0x0; i < MEMSIZE_VIRTUAL; i += PAGESIZE) {
 	// need virtual_memory_lookup and virtual_memory_map in this loop
 
 	// this sets a struct with info about pagetable at i
@@ -189,10 +193,20 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 
 void process_setup(pid_t pid, int program_number) {
 
-
+    owner_global = pid;
     // TO INSERT
     // need to include code that changes the returned pagetable
     // from copy_pagetable to meet the requirements we need
+
+    for (int i = 1; i <=4; i++) {
+	if (pid == (pid_t) i) {
+	    virtual_memory_map(processes[pid].p_pagetable, 0x100000 + (i-1)*PROC_SIZE, 
+		0x100000 + i*PROC_SIZE, PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+	}
+	else
+	    virtual_memory_map(processes[pid].p_pagetable, 0x100000 + (i-1)*PROC_SIZE, 
+		0x100000 + i*PROC_SIZE, PAGESIZE, PTE_P | PTE_W, NULL);
+    }
 
 
     process_init(&processes[pid], 0);
@@ -201,7 +215,6 @@ void process_setup(pid_t pid, int program_number) {
     //for (int i = PROC_START_ADDR; i < MEMSIZE_PHYSICAL; i += PAGESIZE) {
 //	processes[pid].p_pagetable[i] = 0;
 //    }
-    ++pageinfo[PAGENUMBER(kernel_pagetable)].refcount;
     int r = program_load(&processes[pid], program_number, NULL);
     assert(r >= 0);
     processes[pid].p_registers.reg_rsp = PROC_START_ADDR + PROC_SIZE * pid;
@@ -284,8 +297,10 @@ void exception(x86_64_registers* reg) {
         break;                  /* will not be reached */
 
     case INT_SYS_PAGE_ALLOC: {
-        uintptr_t addr = current->p_registers.reg_rdi;
-        int r = assign_physical_page(addr, current->p_pid);
+        
+	uintptr_t addr = current->p_registers.reg_rdi;
+        owner_global = current->p_pid;
+	int r = assign_physical_page(addr, current->p_pid);
         if (r >= PROC_START_ADDR)	// this initially r>=0. Now it only affects
 					// the memory after PROC_START_ADDR (Frank 3/3)
             virtual_memory_map(current->p_pagetable, addr, addr,

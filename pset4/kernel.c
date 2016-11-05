@@ -141,8 +141,13 @@ x86_64_pagetable* p_allocator() {
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     //memset(addr, 0, PAGESIZE);
-    assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
-	memset(addr, 0, PAGESIZE);
+    if (pageinfo[pn].refcount == 0)
+	assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+    else {
+	assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+	pageinfo[pn].refcount++;    
+    }
+    memset(addr, 0, PAGESIZE);
     return addr;
 }
 

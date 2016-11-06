@@ -179,6 +179,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     return free_page;
 }
 
+
 // process_setup(pid, program_number)
 //    Load application program `program_number` as process number `pid`.
 //    This loads the application's code and data into memory, sets its
@@ -314,6 +315,18 @@ void exception(x86_64_registers* reg) {
         current->p_state = P_BROKEN;
         break;
     }
+
+	// fork()
+	case INT_SYS_FORK: {
+		int pid_f = -1;
+		for (int i = 1; i < NPROC; i++) {
+			if (processes[i].p_state == P_FREE) {
+				pid_f = i;
+				break;
+			}
+		}
+		break;
+	}
 
     default:
         panic("Unexpected exception %d!\n", reg->reg_intno);

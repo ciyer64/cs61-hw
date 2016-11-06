@@ -137,9 +137,15 @@ x86_64_pagetable* p_allocator() {
     int pn = 0;   // page number incrementer
 
     while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
-		if (pn > NPAGES)
-	    	return (x86_64_pagetable*) -1;
-		pn++;
+	if (pn > NPAGES) {
+		    //console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+		    return (x86_64_pagetable*) -1;
+	}
+	pn++;
+	if (pn == NPAGES && pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
+	    console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+	    return (x86_64_pagetable*) -1;
+	}
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     //memset(addr, 0, PAGESIZE);
@@ -285,10 +291,11 @@ void exception(x86_64_registers* reg) {
         if (fpage >= 0) {
             virtual_memory_map(current->p_pagetable, addr, fpage,
             	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-        	current->p_registers.reg_rax = 0;
-		} else
-        	current->p_registers.reg_rax = -1;
-			console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+            current->p_registers.reg_rax = 0;
+	} 
+	else
+            current->p_registers.reg_rax = -1;
+	    //console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
         break;
     }
 

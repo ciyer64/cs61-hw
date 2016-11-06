@@ -144,7 +144,11 @@ x86_64_pagetable* p_allocator() {
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     //memset(addr, 0, PAGESIZE);
 
-	assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+	int n = assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+	
+	if (n != 0) {
+		return (x86_64_pagetable*) -1;
+	}
 
     memset(addr, 0, PAGESIZE);
     return addr;
@@ -155,7 +159,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	owner_global = owner;
     // find pagetable to copy (kernel pagetable)
     x86_64_pagetable* free_page = p_allocator();
-    if (free_page == (x86_64_pagetable*) -1)
+    if ((intptr_t) free_page == -1)
 		return NULL;
     // next we have to copy relevant parts of kernel pagetable into destination
 	// copy pre-process data from kernel pagetable
@@ -284,6 +288,7 @@ void exception(x86_64_registers* reg) {
         	current->p_registers.reg_rax = 0;
 		} else
         	current->p_registers.reg_rax = -1;
+			console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
         break;
     }
 

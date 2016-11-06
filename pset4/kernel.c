@@ -137,24 +137,27 @@ x86_64_pagetable* p_allocator() {
     int pn = 0;   // page number incrementer
 
     while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
-	if (pn > NPAGES) {
-		    //console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
-		    return (x86_64_pagetable*) -1;
-	}
 	pn++;
-	if (pn == NPAGES && pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
-	    console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
-	    return (x86_64_pagetable*) -1;
+	if (pn > NPAGES) {
+		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+	    	return (x86_64_pagetable*) -1;
 	}
+	//pn++;
+	/*
+	if (pn == NPAGES && pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
+		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+		return (x86_64_pagetable*) -1;
+	}
+	*/
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
     //memset(addr, 0, PAGESIZE);
 
-	int n = assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
+    int n = assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
 	
-	if (n != 0) {
-		return (x86_64_pagetable*) -1;
-	}
+    if (n != 0) {
+	return (x86_64_pagetable*) -1;
+    }
 
     memset(addr, 0, PAGESIZE);
     return addr;
@@ -184,6 +187,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     // return the allocated and initialized page table
     return free_page;
 }
+
 
 // process_setup(pid, program_number)
 //    Load application program `program_number` as process number `pid`.
@@ -290,12 +294,12 @@ void exception(x86_64_registers* reg) {
 		//int r = assign_physical_page(addr, current->p_pid);
         if (fpage >= 0) {
             virtual_memory_map(current->p_pagetable, addr, fpage,
-            	PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+                PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
             current->p_registers.reg_rax = 0;
 	} 
 	else
             current->p_registers.reg_rax = -1;
-	    //console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+			//console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
         break;
     }
 
@@ -321,6 +325,38 @@ void exception(x86_64_registers* reg) {
         current->p_state = P_BROKEN;
         break;
     }
+
+	// fork()
+	case INT_SYS_FORK: {
+		int pid_f = -1;
+		for (int i = 1; i < NPROC; i++) {
+			if (processes[i].p_state == P_FREE) {
+				pid_f = i;
+				break;
+			}
+		}
+		proc* parent = current;
+		proc* child = &processes[pid_f];
+		child->p_pid = parent->p_pid;
+		child->p_registers = parent->p_registers;
+		child->p_state = parent->p_state;
+		child->p_pagetable = copy_pagetable(parent->pagetable, parent->p_pid);
+
+		//owner_global = current->p_pid;
+		//x86_64_pagetable* pg_copy = copy_pagetable(current->p_pagetable, owner_global);
+
+		// But you must also copy the process data in every application page shared by the two processes. 
+		// The processes should not share any writable memory except the console (otherwise they wouldn’t be isolated). 
+		// So fork must examine every virtual address in the old page table. 
+		// Whenever the parent process has an application-writable page at virtual address V, 
+		// then fork must allocate a new physical page P; copy the data from the parent’s page into P, 
+		// using memcpy; and finally map page P at address V in the child process’s page table.
+
+		// Use virtual_memory_lookup to query the mapping between virtual and physical addresses in a page table.
+
+		//current->p_registers.reg_rax = pid_f;
+		break;
+	}
 
     default:
         panic("Unexpected exception %d!\n", reg->reg_intno);

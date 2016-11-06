@@ -335,13 +335,21 @@ void exception(x86_64_registers* reg) {
 				break;
 			}
 		}
+		if (pid_f == -1) {
+			current->p_registers.reg_rax = -1;
+			break;
+		}
 		proc* parent = current;
 		proc* child = &processes[pid_f];
-		child->p_pid = parent->p_pid;
+		child->p_pid = pid_f;
 		child->p_registers = parent->p_registers;
 		child->p_state = parent->p_state;
-		child->p_pagetable = copy_pagetable(parent->pagetable, parent->p_pid);
-
+		child->p_pagetable = copy_pagetable(parent->p_pagetable, child->p_pid);
+		for (uintptr_t va = PROC_START_ADDR; i < MEMSIZE_VIRTUAL; i += PAGESIZE) {
+			vamapping vm = virtual_memory_lookup(parent->p_pagetable, va);
+			if (vm.perm & (PTE_P | PTE_W | PTE_U) == (PTE_P | PTE_W | PTE_U)) {
+			}
+		}
 		//owner_global = current->p_pid;
 		//x86_64_pagetable* pg_copy = copy_pagetable(current->p_pagetable, owner_global);
 

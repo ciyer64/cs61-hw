@@ -366,21 +366,21 @@ void exception(x86_64_registers* reg) {
 		for (uintptr_t va = PROC_START_ADDR; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
 			vamapping vm = virtual_memory_lookup(parent->p_pagetable, va);
 
-			// track the number of active references to each page
-			if (pageinfo[vm.pn].refcount > 0 && pageinfo[vm.pn].owner > 0) {
-				virtual_memory_map(child->p_pagetable, va, vm.pa, PAGESIZE, 
-					PTE_P | PTE_U, p_allocator);
-				pageinfo[vm.pn].refcount++;
-			}
-
 			// check if the page at this address is application-writable
-			else if ((vm.perm & (PTE_P | PTE_W | PTE_U)) == (PTE_P | PTE_W | PTE_U)) {
+			if ((vm.perm & (PTE_P | PTE_W | PTE_U)) == (PTE_P | PTE_W | PTE_U)) {
 				void* addr = (void*) p_allocator();
 				// copy data from parent's page
 				memcpy(addr, (void*) vm.pa, PAGESIZE);
 				// map physical page at virt. addr. in child's page table
 				virtual_memory_map(child->p_pagetable, va, (uintptr_t) addr, PAGESIZE, 
 					PTE_P|PTE_W|PTE_U, p_allocator);
+			}
+
+			// track the number of active references to each page
+			else if (pageinfo[vm.pn].refcount > 0 && pageinfo[vm.pn].owner > 0) {
+				virtual_memory_map(child->p_pagetable, va, vm.pa, PAGESIZE, 
+					PTE_P | PTE_U, p_allocator);
+				pageinfo[vm.pn].refcount++;
 			}
 		}
 		

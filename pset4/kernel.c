@@ -133,9 +133,9 @@ void kernel(const char* command) {
 
 // find a free page to use as destination using pageinfo array
 x86_64_pagetable* p_allocator() {
-    // iterate through physical pages until  pageinfo[PAGENUMBER].refcount == 0
     int pn = 0;   // page number incrementer
 
+	// iterate through physical pages until find one w/ refcount == 0
     while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
 	if (pn == NPAGES) {
 		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
@@ -150,7 +150,6 @@ x86_64_pagetable* p_allocator() {
 	*/
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
-    //memset(addr, 0, PAGESIZE);
 
     int n = assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
 	
@@ -165,20 +164,17 @@ x86_64_pagetable* p_allocator() {
 /**************************Code written by Frank (Frank 2/3)***********************/
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	owner_global = owner;
-    // find pagetable to copy (kernel pagetable)
+    // find free pagetable to copy kernel pagetable into
     x86_64_pagetable* free_page = p_allocator();
     if ((intptr_t) free_page == -1)
 		return NULL;
-    // next we have to copy relevant parts of kernel pagetable into destination
 	// copy pre-process data from kernel pagetable
-	//i < MEMSIZE_VIRTUAL
     for (int i = 0x0; i < PROC_START_ADDR; i += PAGESIZE) {
 		// see kernel.h for details on virtual_memory_lookup
 		vamapping virt_lookup = virtual_memory_lookup(pagetable, i);
 
-		// This uses allocator function and virt_lookup to make a new mapping
-		//virtual_memory_map(free_page, i, virt_lookup.pa, PAGESIZE, 
-		//	virt_lookup.perm, p_allocator);
+		// map the virtual memory (from lookup above) into 
+		// the free physical page (from allocator)
 		virtual_memory_map(free_page, i, virt_lookup.pa, PAGESIZE, 
 			PTE_P | PTE_W, p_allocator);
     }
@@ -187,6 +183,20 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     return free_page;
 }
 
+int sys_exit() {
+	for (uintptr_t va = 0; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
+		vamapping vam = virtual_memory_lookup(current->p_pagetable, va);
+		if (pageinfo[vam.pn].owner > 0) {
+			// reset ownership to free
+			pageinfo[vam.pn].owner = PO_FREE;
+			// reset reference count
+			pageinfo[vam.pn].refcount = 0;
+		}
+	}
+	// set process state to free
+	processes[current->p_pid].p_state = P_FREE;
+	return 0;
+}
 
 // process_setup(pid, program_number)
 //    Load application program `program_number` as process number `pid`.
@@ -196,7 +206,8 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 void process_setup(pid_t pid, int program_number) {
 
     process_init(&processes[pid], 0);
-    processes[pid].p_pagetable = copy_pagetable(kernel_pagetable, pid); // copying pagetable here
+	// copy kernel pagetable
+    processes[pid].p_pagetable = copy_pagetable(kernel_pagetable, pid);
 
 	virtual_memory_map(processes[pid].p_pagetable, PROC_START_ADDR, PROC_START_ADDR,
 		MEMSIZE_PHYSICAL - PROC_START_ADDR, 0, NULL);
@@ -290,15 +301,14 @@ void exception(x86_64_registers* reg) {
 		uintptr_t addr = current->p_registers.reg_rdi;
 		owner_global = current->p_pid;
 		intptr_t fpage = (intptr_t) p_allocator();
-		//int r = assign_physical_page(addr, current->p_pid);
         if (fpage >= 0) {
             virtual_memory_map(current->p_pagetable, addr, fpage,
                 PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
             current->p_registers.reg_rax = 0;
 	} 
 	else
-            current->p_registers.reg_rax = -1;
-			//console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+    	current->p_registers.reg_rax = -1;
+		//console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
         break;
     }
 
@@ -324,6 +334,12 @@ void exception(x86_64_registers* reg) {
         current->p_state = P_BROKEN;
         break;
     }
+	
+	// exit() implementation
+	case INT_SYS_EXIT: {
+		sys_exit();
+		break;
+	}
 
 	// fork() implementation
 	case INT_SYS_FORK: {
@@ -342,6 +358,7 @@ void exception(x86_64_registers* reg) {
 		// if no slot can be found
 		if (pid_f == -1) {
 			current->p_registers.reg_rax = -1;
+			//sys_exit();
 			run(current);
 			return;
 		}
@@ -360,6 +377,7 @@ void exception(x86_64_registers* reg) {
 		
 		// error case if copy fails
 		if (!child->p_pagetable)
+			//sys_exit();
 			return;
 
 		// examine all virtual addresses in old page table

@@ -328,23 +328,36 @@ void exception(x86_64_registers* reg) {
 
 	// fork()
 	case INT_SYS_FORK: {
+		// variable that will be -1 if fails
+		// or denotes free process
 		int pid_f = -1;
+
+		// find the free process slot
 		for (int i = 1; i < NPROC; i++) {
 			if (processes[i].p_state == P_FREE) {
 				pid_f = i;
 				break;
 			}
 		}
+
+		// if no slot can be found
 		if (pid_f == -1) {
 			current->p_registers.reg_rax = -1;
+			run(current);
 			break;
 		}
+		// initialize pointers to parent & child processes
 		proc* parent = current;
 		proc* child = &processes[pid_f];
+
+		// copy parent process data to child
 		child->p_pid = pid_f;
 		child->p_registers = parent->p_registers;
-		child->p_state = parent->p_state;
+		child->p_registers.reg_rax = 0;
+		child->p_state = P_RUNNABLE;
+
 		child->p_pagetable = copy_pagetable(parent->p_pagetable, child->p_pid);
+
 		for (uintptr_t va = PROC_START_ADDR; i < MEMSIZE_VIRTUAL; i += PAGESIZE) {
 			vamapping vm = virtual_memory_lookup(parent->p_pagetable, va);
 			if (vm.perm & (PTE_P | PTE_W | PTE_U) == (PTE_P | PTE_W | PTE_U)) {

@@ -137,12 +137,11 @@ x86_64_pagetable* p_allocator() {
     int pn = 0;   // page number incrementer
 
     while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
-	pn++;
-	if (pn > NPAGES) {
+	if (pn == NPAGES) {
 		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
-	    	return (x86_64_pagetable*) -1;
+	    return (x86_64_pagetable*) -1;
 	}
-	//pn++;
+	pn++;
 	/*
 	if (pn == NPAGES && pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
 		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
@@ -326,7 +325,7 @@ void exception(x86_64_registers* reg) {
         break;
     }
 
-	// fork()
+	// fork() implementation
 	case INT_SYS_FORK: {
 		// variable that will be -1 if fails
 		// or denotes free process
@@ -344,7 +343,7 @@ void exception(x86_64_registers* reg) {
 		if (pid_f == -1) {
 			current->p_registers.reg_rax = -1;
 			run(current);
-			break;
+			return;
 		}
 		// initialize pointers to parent & child processes
 		proc* parent = current;
@@ -356,29 +355,30 @@ void exception(x86_64_registers* reg) {
 		child->p_registers.reg_rax = 0;
 		child->p_state = P_RUNNABLE;
 
+		// copy parent's page table
 		child->p_pagetable = copy_pagetable(parent->p_pagetable, child->p_pid);
-
-		for (uintptr_t va = PROC_START_ADDR; i < MEMSIZE_VIRTUAL; i += PAGESIZE) {
+		
+		if (!child->p_pagetable) {
+			return;
+		}
+		
+		// examine all virtual addresses in old page table
+		
+		for (uintptr_t va = PROC_START_ADDR; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
 			vamapping vm = virtual_memory_lookup(parent->p_pagetable, va);
-			if (vm.perm & (PTE_P | PTE_W | PTE_U) == (PTE_P | PTE_W | PTE_U)) {
+			if ((vm.perm & (PTE_P | PTE_W | PTE_U)) == (PTE_P | PTE_W | PTE_U)) {
+				void* addr = (void*) p_allocator();
+				memcpy(addr, (void*) vm.pa, PAGESIZE);
+				virtual_memory_map(child->p_pagetable, va, (uintptr_t) addr, PAGESIZE, 
+					PTE_P|PTE_W|PTE_U, p_allocator);
 			}
 		}
-		//owner_global = current->p_pid;
-		//x86_64_pagetable* pg_copy = copy_pagetable(current->p_pagetable, owner_global);
-
-		// But you must also copy the process data in every application page shared by the two processes. 
-		// The processes should not share any writable memory except the console (otherwise they wouldn’t be isolated). 
-		// So fork must examine every virtual address in the old page table. 
-		// Whenever the parent process has an application-writable page at virtual address V, 
-		// then fork must allocate a new physical page P; copy the data from the parent’s page into P, 
-		// using memcpy; and finally map page P at address V in the child process’s page table.
-
-		// Use virtual_memory_lookup to query the mapping between virtual and physical addresses in a page table.
-
-		//current->p_registers.reg_rax = pid_f;
+		
+		parent->p_registers.reg_rax = child->p_pid;
+		run(parent);
 		break;
 	}
-
+	
     default:
         panic("Unexpected exception %d!\n", reg->reg_intno);
         break;                  /* will not be reached */

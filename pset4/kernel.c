@@ -334,6 +334,26 @@ void exception(x86_64_registers* reg) {
 				break;
 			}
 		}
+		proc* parent = current;
+		proc* child = &processes[pid_f];
+		child->p_pid = parent->p_pid;
+		child->p_registers = parent->p_registers;
+		child->p_state = parent->p_state;
+		child->p_pagetable = copy_pagetable(parent->pagetable, parent->p_pid);
+
+		//owner_global = current->p_pid;
+		//x86_64_pagetable* pg_copy = copy_pagetable(current->p_pagetable, owner_global);
+
+		// But you must also copy the process data in every application page shared by the two processes. 
+		// The processes should not share any writable memory except the console (otherwise they wouldn’t be isolated). 
+		// So fork must examine every virtual address in the old page table. 
+		// Whenever the parent process has an application-writable page at virtual address V, 
+		// then fork must allocate a new physical page P; copy the data from the parent’s page into P, 
+		// using memcpy; and finally map page P at address V in the child process’s page table.
+
+		// Use virtual_memory_lookup to query the mapping between virtual and physical addresses in a page table.
+
+		//current->p_registers.reg_rax = pid_f;
 		break;
 	}
 

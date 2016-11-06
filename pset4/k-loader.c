@@ -98,6 +98,16 @@ static int program_load_segment(proc* p, const elf_program* ph,
     memcpy((uint8_t*) va, src, end_file - va);
     memset((uint8_t*) end_file, 0, end_mem - end_file);
 
+	// detect read-only programs with the below flag
+	if ((ph->p_flags & ELF_PFLAG_WRITE) == 0) {
+		for (uintptr_t pg_va = va; pg_va < end_mem; pg_va += PAGESIZE) {
+			vamapping vam = virtual_memory_lookup(p->p_pagetable, pg_va);
+			// map them as read-only for applications			
+			virtual_memory_map(p->p_pagetable, pg_va, vam.pa, 
+				PAGESIZE, PTE_P | PTE_U, NULL);
+		}
+	}
+
     // restore kernel pagetable
     set_pagetable(kernel_pagetable);
     return 0;

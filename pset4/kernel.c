@@ -31,6 +31,7 @@ static unsigned ticks;          // # timer interrupts so far
 void schedule(void);
 void run(proc* p) __attribute__((noreturn));
 
+#define CONSOLE 0xB8000
 
 // PAGEINFO
 //
@@ -200,6 +201,35 @@ int free_mem(proc* cur) {
 	return 0;
 }
 
+int free_pagetable(x86_64_pagetable* p, int level) {
+	for (int i = 0; i < NPAGETABLEENTRIES; i++) {
+		if (p->entry[i] & PTE_P) {
+			if (level != 4) {
+				free_pagetable((x86_64_pagetable*) PTE_ADDR(p->entry[i]), level+1);
+			}
+			if (level != 4 || ((p->entry[i] & PTE_U) && (PTE_ADDR(p->entry[i]) != CONSOLE))) {
+				pageinfo[PAGENUMBER(p->entry[i])].refcount--;
+				if (pageinfo[PAGENUMBER(p->entry[i])].refcount == 0) {
+					pageinfo[PAGENUMBER(p->entry[i])].owner = PO_FREE;
+				}
+			}
+		}
+	}	
+	if (level == 1)	{
+		pageinfo[PAGENUMBER(p)].refcount--;
+		if (pageinfo[PAGENUMBER(p)].refcount == 0) {
+			pageinfo[PAGENUMBER(p)].owner = PO_FREE;
+		}
+	}
+	return 0;
+}
+
+void sysexit(proc* p) {
+	free_pagetable(p->p_pagetable, 1);
+	p->p_pagetable=NULL;
+	p->p_state=P_FREE;
+}
+
 
 // process_setup(pid, program_number)
 //    Load application program `program_number` as process number `pid`.
@@ -339,7 +369,7 @@ void exception(x86_64_registers* reg) {
 	
 	// exit() implementation
 	case INT_SYS_EXIT: {
-		free_mem(current);
+		sysexit(current);
 		break;
 	}
 

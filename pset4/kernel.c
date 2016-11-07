@@ -113,20 +113,20 @@ void kernel(const char* command) {
     else
         for (pid_t i = 1; i <= 4; ++i)
             process_setup(i, i - 1);
-	/*
+	
 	virtual_memory_map(kernel_pagetable, 0, 0, PROC_START_ADDR,
 		PTE_P | PTE_W, NULL);
 	virtual_memory_map(kernel_pagetable, (uintptr_t) console, (uintptr_t) console,
 		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);	
-	*/
 	
+	/*
 	virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
 		(uintptr_t) console, PTE_P | PTE_W, NULL);
     virtual_memory_map(kernel_pagetable, (0xB8000+PAGESIZE), (0xB8000+PAGESIZE), 
         (PROC_START_ADDR-0xB8000-PAGESIZE), PTE_P | PTE_W, NULL);
     virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
 		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-	
+	*/
     // Switch to the first process using run()
     run(&processes[1]);
 }
@@ -137,24 +137,18 @@ x86_64_pagetable* p_allocator() {
 
 	// iterate through physical pages until find one w/ refcount == 0
     while (pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
-	if (pn == NPAGES) {
-		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
-	    return (x86_64_pagetable*) -1;
-	}
-	pn++;
-	/*
-	if (pn == NPAGES && pageinfo[pn].refcount != 0 && pageinfo[pn].owner != PO_FREE) {
-		console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
-		return (x86_64_pagetable*) -1;
-	}
-	*/
+		// if no free page to be found
+		if (pn > NPAGES) {
+	    	return (x86_64_pagetable*) -1;
+		}
+		++pn;
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
 
     int n = assign_physical_page((uintptr_t) addr, (uint8_t) owner_global);
 	
     if (n != 0) {
-	return (x86_64_pagetable*) -1;
+		return (x86_64_pagetable*) -1;
     }
 
     memset(addr, 0, PAGESIZE);
@@ -166,10 +160,13 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	owner_global = owner;
     // find free pagetable to copy kernel pagetable into
     x86_64_pagetable* free_page = p_allocator();
+
     if ((intptr_t) free_page == -1)
 		return NULL;
+
 	// copy pre-process data from kernel pagetable
     for (int i = 0x0; i < PROC_START_ADDR; i += PAGESIZE) {
+
 		// see kernel.h for details on virtual_memory_lookup
 		vamapping virt_lookup = virtual_memory_lookup(pagetable, i);
 
@@ -184,20 +181,18 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 }
 
 int free_mem(proc* cur) {
-	for (uintptr_t va = 0; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
-		vamapping vam = virtual_memory_lookup(cur->p_pagetable, va);
-		if (pageinfo[vam.pn].owner == cur->p_pid) {
+	for (uintptr_t pn = 0; pn < PAGENUMBER(MEMSIZE_PHYSICAL); pn++) {
+		//vamapping vam = virtual_memory_lookup(cur->p_pagetable, va);
+		if (pageinfo[pn].owner == cur->p_pid) {
 			// reset ownership to free
-			pageinfo[vam.pn].refcount--;
-			if (pageinfo[vam.pn].refcount == 0) {
-				pageinfo[vam.pn].owner = PO_FREE;
+			pageinfo[pn].refcount--;
+			if (pageinfo[pn].refcount == 0) {
+				pageinfo[pn].owner = PO_FREE;
 			}
 		}
-		//if (va == PROC_START_ADDR) {
-		//	if (pageinfo[vam.pn].refcount > 1 && pageinfo[vam.pn].owner > 0) {
-		//		pageinfo[vam.pn].refcount--;
-		//	}
-		//}
+		else if (pageinfo[pn].refcount > 1 && pageinfo[pn].owner > 0) {
+			pageinfo[pn].refcount--;
+		}
 	}
 	// set process state to free
 	processes[cur->p_pid].p_state = P_FREE;
@@ -311,11 +306,12 @@ void exception(x86_64_registers* reg) {
             virtual_memory_map(current->p_pagetable, addr, fpage,
                 PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
             current->p_registers.reg_rax = 0;
-	} 
-	else
-    	current->p_registers.reg_rax = -1;
-		//console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
-        break;
+		} 
+		else {
+			console_printf(CPOS(24,2), 0x0C00, "Out of physical memory!\n");
+    		current->p_registers.reg_rax = -1;
+        	break;
+		}
     }
 
     case INT_TIMER:
@@ -361,64 +357,70 @@ void exception(x86_64_registers* reg) {
 			}
 		}
 
-		// if no slot can be found
-		if (pid_f == -1) {
-			current->p_registers.reg_rax = -1;
-			run(current);
-			return;
-		}
 		// initialize pointer to child processes
-		proc* child = &processes[pid_f];
+		if (pid_f != -1) {
+			proc* child = &processes[pid_f];
 
-		// copy parent process data to child
-		child->p_pid = pid_f;
-		child->p_registers = current->p_registers;
-		child->p_state = P_RUNNABLE;
+			// copy parent process data to child
+			child->p_pid = pid_f;
+			child->p_registers = current->p_registers;
+			child->p_state = P_RUNNABLE;
 
-		// copy parent's page table
-		child->p_pagetable = copy_pagetable(current->p_pagetable, child->p_pid);
+			// copy parent's page table
+			child->p_pagetable = copy_pagetable(current->p_pagetable, child->p_pid);
 
-		// error case if copy fails
-		if (!child->p_pagetable)
-			//free_mem(current);
-			//current->p_registers.reg_rax = -1;
-			//run(current);
+			// error case if copy fails
+			if (!child->p_pagetable) {
+				free_mem(current);
+				current->p_registers.reg_rax = -1;
+				run(current);
+				break;
+			}
+
+			// re-map the console to prevent blink
+			virtual_memory_map(child->p_pagetable, (uintptr_t) console, (uintptr_t) console,
+				PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
+
+			// examine all virtual addresses in old page table
+			for (uintptr_t va = PROC_START_ADDR; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
+				vamapping vm = virtual_memory_lookup(current->p_pagetable, va);
+
+				// check if the page at this address is application-writable
+				if ((vm.perm & (PTE_P | PTE_W | PTE_U)) == (PTE_P | PTE_W | PTE_U)) {
+					x86_64_pagetable* addr = p_allocator();
+
+					// error check with allocation
+					if ((intptr_t) addr == -1) {
+						free_mem(child);
+						current->p_registers.reg_rax = -1;
+						run(current);
+						return;
+					}
+					// copy data from parent's page
+					memcpy((void*) addr, (void*) vm.pa, PAGESIZE);
+
+					// map physical page at virt. addr. in child's page table
+					virtual_memory_map(child->p_pagetable, va, (uintptr_t) addr, PAGESIZE, 
+						PTE_P|PTE_W|PTE_U, p_allocator);
+				}
+				// track the number of active references to each page
+				else if (pageinfo[vm.pn].refcount > 0 && pageinfo[vm.pn].owner > 0) {
+					virtual_memory_map(child->p_pagetable, va, vm.pa, PAGESIZE, 
+						PTE_P | PTE_U, p_allocator);
+					pageinfo[vm.pn].refcount++;
+				}
+			}
+			current->p_registers.reg_rax = child->p_pid;
+			child->p_registers.reg_rax = 0;
+			run(current);
 			break;
 
-		// re-map the console to prevent blink
-		virtual_memory_map(child->p_pagetable, (uintptr_t) console, (uintptr_t) console,
-			PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-
-		// examine all virtual addresses in old page table
-		for (uintptr_t va = PROC_START_ADDR; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
-			vamapping vm = virtual_memory_lookup(current->p_pagetable, va);
-			// check if the page at this address is application-writable
-			if ((vm.perm & (PTE_P | PTE_W | PTE_U)) == (PTE_P | PTE_W | PTE_U)) {
-				x86_64_pagetable* addr = p_allocator();
-				// error check with allocation
-				if ((intptr_t) addr == -1) {
-					//free_mem(child);
-					//current->p_registers.reg_rax = -1;
-					//run(current);
-					return;
-				}
-				// copy data from parent's page
-				memcpy((void*) addr, (void*) vm.pa, PAGESIZE);
-				// map physical page at virt. addr. in child's page table
-				virtual_memory_map(child->p_pagetable, va, (uintptr_t) addr, PAGESIZE, 
-					PTE_P|PTE_W|PTE_U, p_allocator);
-			}
-			// track the number of active references to each page
-			else if (pageinfo[vm.pn].refcount > 0 && pageinfo[vm.pn].owner > 0) {
-				virtual_memory_map(child->p_pagetable, va, vm.pa, PAGESIZE, 
-					PTE_P | PTE_U, p_allocator);
-				pageinfo[vm.pn].refcount++;
-			}
+		} else {
+			// if no slot can be found
+			current->p_registers.reg_rax = -1;
+			//run(current);
+			break;
 		}
-		current->p_registers.reg_rax = child->p_pid;
-		child->p_registers.reg_rax = 0;
-		run(current);
-		break;
 	}
 	
     default:

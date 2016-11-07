@@ -155,7 +155,7 @@ x86_64_pagetable* p_allocator() {
     return addr;
 }
 
-/**************************Code written by Frank (Frank 2/3)***********************/
+// copy pagetable into next free page
 x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 	owner_global = owner;
     // find free pagetable to copy kernel pagetable into
@@ -180,6 +180,7 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     return free_page;
 }
 
+// helper function for fork exit program
 int free_mem(proc* cur) {
 	for (uintptr_t pn = 0; pn < PAGENUMBER(MEMSIZE_PHYSICAL); pn++) {
 		if (pageinfo[pn].owner == cur->p_pid) {
@@ -198,6 +199,7 @@ int free_mem(proc* cur) {
 	processes[cur->p_pid].p_state = P_FREE;
 	return 0;
 }
+
 
 // process_setup(pid, program_number)
 //    Load application program `program_number` as process number `pid`.
@@ -228,8 +230,6 @@ void process_setup(pid_t pid, int program_number) {
     processes[pid].p_state = P_RUNNABLE;
 }
 
-
-/*******************end of code written by Frank************************/
 
 // assign_physical_page(addr, owner)
 //    Allocates the page with physical address `addr` to the given owner.
@@ -418,7 +418,7 @@ void exception(x86_64_registers* reg) {
 		} else {
 			// if no slot can be found
 			current->p_registers.reg_rax = -1;
-			//run(current);
+			run(current);
 			break;
 		}
 	}

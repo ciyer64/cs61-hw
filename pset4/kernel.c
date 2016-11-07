@@ -183,18 +183,24 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
     return free_page;
 }
 
-int free_mem(proc* p) {
-	for (uintptr_t va = 0; va < MEMSIZE_PHYSICAL; va += PAGESIZE) {
-		vamapping vam = virtual_memory_lookup(p->p_pagetable, va);
-		if (pageinfo[vam.pn].owner == p->p_pid) {
+int free_mem(proc* cur) {
+	for (uintptr_t va = 0; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
+		vamapping vam = virtual_memory_lookup(cur->p_pagetable, va);
+		if (pageinfo[vam.pn].owner == cur->p_pid) {
 			// reset ownership to free
 			pageinfo[vam.pn].refcount--;
-			if (pageinfo[vam.pn].refcount == 0)
+			if (pageinfo[vam.pn].refcount == 0) {
 				pageinfo[vam.pn].owner = PO_FREE;
+			}
 		}
+		//if (va == PROC_START_ADDR) {
+		//	if (pageinfo[vam.pn].refcount > 1 && pageinfo[vam.pn].owner > 0) {
+		//		pageinfo[vam.pn].refcount--;
+		//	}
+		//}
 	}
 	// set process state to free
-	processes[p->p_pid].p_state = P_FREE;
+	processes[cur->p_pid].p_state = P_FREE;
 	return 0;
 }
 
@@ -361,23 +367,23 @@ void exception(x86_64_registers* reg) {
 			run(current);
 			return;
 		}
-		// initialize pointers to parent & child processes
-		proc* parent = current;
+		// initialize pointer to child processes
 		proc* child = &processes[pid_f];
 
 		// copy parent process data to child
 		child->p_pid = pid_f;
-		child->p_registers = parent->p_registers;
-		child->p_registers.reg_rax = 0;
+		child->p_registers = current->p_registers;
 		child->p_state = P_RUNNABLE;
 
 		// copy parent's page table
-		child->p_pagetable = copy_pagetable(parent->p_pagetable, child->p_pid);
+		child->p_pagetable = copy_pagetable(current->p_pagetable, child->p_pid);
 
 		// error case if copy fails
 		if (!child->p_pagetable)
-			free_mem(current);
-			return;
+			//free_mem(current);
+			//current->p_registers.reg_rax = -1;
+			//run(current);
+			break;
 
 		// re-map the console to prevent blink
 		virtual_memory_map(child->p_pagetable, (uintptr_t) console, (uintptr_t) console,
@@ -385,7 +391,7 @@ void exception(x86_64_registers* reg) {
 
 		// examine all virtual addresses in old page table
 		for (uintptr_t va = PROC_START_ADDR; va < MEMSIZE_VIRTUAL; va += PAGESIZE) {
-			vamapping vm = virtual_memory_lookup(parent->p_pagetable, va);
+			vamapping vm = virtual_memory_lookup(current->p_pagetable, va);
 			// check if the page at this address is application-writable
 			if ((vm.perm & (PTE_P | PTE_W | PTE_U)) == (PTE_P | PTE_W | PTE_U)) {
 				x86_64_pagetable* addr = p_allocator();
@@ -409,8 +415,9 @@ void exception(x86_64_registers* reg) {
 				pageinfo[vm.pn].refcount++;
 			}
 		}
-		parent->p_registers.reg_rax = child->p_pid;
-		run(parent);
+		current->p_registers.reg_rax = child->p_pid;
+		child->p_registers.reg_rax = 0;
+		run(current);
 		break;
 	}
 	

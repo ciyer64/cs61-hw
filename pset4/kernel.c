@@ -117,17 +117,9 @@ void kernel(const char* command) {
 	
 	virtual_memory_map(kernel_pagetable, 0, 0, PROC_START_ADDR,
 		PTE_P | PTE_W, NULL);
-	virtual_memory_map(kernel_pagetable, (uintptr_t) console, (uintptr_t) console,
+	virtual_memory_map(kernel_pagetable, CONSOLE, CONSOLE,
 		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);	
 	
-	/*
-	virtual_memory_map(kernel_pagetable, 0x0, 0x0, 
-		(uintptr_t) console, PTE_P | PTE_W, NULL);
-    virtual_memory_map(kernel_pagetable, (0xB8000+PAGESIZE), (0xB8000+PAGESIZE), 
-        (PROC_START_ADDR-0xB8000-PAGESIZE), PTE_P | PTE_W, NULL);
-    virtual_memory_map(kernel_pagetable, 0xB8000, 0xB8000, 
-		PAGESIZE, PTE_P | PTE_W | PTE_U, NULL);
-	*/
     // Switch to the first process using run()
     run(&processes[1]);
 }
@@ -251,11 +243,11 @@ void process_setup(pid_t pid, int program_number) {
     assert(r >= 0);
     //processes[pid].p_registers.reg_rsp = PROC_START_ADDR + PROC_SIZE * pid;
     processes[pid].p_registers.reg_rsp = MEMSIZE_VIRTUAL;
-    //uintptr_t stack_page = processes[pid].p_registers.reg_rsp - PAGESIZE;
-	uintptr_t stack_page = (uintptr_t) p_allocator();
+    uintptr_t stack_page = processes[pid].p_registers.reg_rsp - PAGESIZE;
+	uintptr_t free_page = (uintptr_t) p_allocator();
     //assign_physical_page(stack_page, pid);
     virtual_memory_map(processes[pid].p_pagetable, 
-		MEMSIZE_VIRTUAL - PAGESIZE, stack_page, PAGESIZE, 
+		stack_page, free_page, PAGESIZE, 
 		PTE_P | PTE_W | PTE_U, p_allocator);
     processes[pid].p_state = P_RUNNABLE;
 }
@@ -401,10 +393,11 @@ void exception(x86_64_registers* reg) {
 
 			// error case if copy fails
 			if (!child->p_pagetable) {
-				free_mem(child);
+				//free_mem(child);
+				child->p_state = P_FREE;
 				current->p_registers.reg_rax = -1;
 				run(current);
-				break;
+				return;
 			}
 
 			// re-map the console to prevent blink
@@ -421,7 +414,10 @@ void exception(x86_64_registers* reg) {
 
 					// error check with allocation
 					if ((intptr_t) addr == -1) {
-						free_mem(child);
+						//free_mem(child);
+						free_pagetable(child->p_pagetable,1);
+						child->p_pagetable=NULL;
+						child->p_state = P_FREE;
 						current->p_registers.reg_rax = -1;
 						run(current);
 						return;

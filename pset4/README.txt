@@ -10,8 +10,9 @@ Joe Kahn
 
 
 KNOWN BUGS/NOTES FOR THE GRADER (if any):
-Step 7 does not work completely - if you press f, then e, it will continue to run for a while,
-but after some time an error will appear saying that the "pagetable % PAGESIZE == 0" assert has failed.
-
+Step 7 seems to work near perfectly.  However, there is a rare bug
+that causes the "new pt % PAGESIZE == 0" assert to fail.  Not only is
+the bug rare, but it also takes a while to show up (generally ~5min).
+Hope it's not a problem.  Thanks!
 
 EXTRA CREDIT ATTEMPTED (if any):

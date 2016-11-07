@@ -182,7 +182,6 @@ x86_64_pagetable* copy_pagetable(x86_64_pagetable* pagetable, int8_t owner) {
 
 int free_mem(proc* cur) {
 	for (uintptr_t pn = 0; pn < PAGENUMBER(MEMSIZE_PHYSICAL); pn++) {
-		//vamapping vam = virtual_memory_lookup(cur->p_pagetable, va);
 		if (pageinfo[pn].owner == cur->p_pid) {
 			// reset ownership to free
 			pageinfo[pn].refcount--;
@@ -190,6 +189,7 @@ int free_mem(proc* cur) {
 				pageinfo[pn].owner = PO_FREE;
 			}
 		}
+		// in cases where it is referred but not owned by another
 		else if (pageinfo[pn].refcount > 1 && pageinfo[pn].owner > 0) {
 			pageinfo[pn].refcount--;
 		}

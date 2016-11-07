@@ -141,7 +141,7 @@ x86_64_pagetable* p_allocator() {
 		if (pn > NPAGES) {
 	    	return (x86_64_pagetable*) -1;
 		}
-		++pn;
+		pn++;
     }
     x86_64_pagetable* addr = (x86_64_pagetable*) PAGEADDRESS(pn);
 
@@ -371,7 +371,7 @@ void exception(x86_64_registers* reg) {
 
 			// error case if copy fails
 			if (!child->p_pagetable) {
-				free_mem(current);
+				free_mem(child);
 				current->p_registers.reg_rax = -1;
 				run(current);
 				break;

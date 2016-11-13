@@ -4,6 +4,9 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#define TRUE 1
+#define FALSE 0
+
 
 // struct command
 //    Data structure describing a command. Add your own stuff.
@@ -13,6 +16,7 @@ struct command {
     int argc;      // number of arguments
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
+	int is_back;   // indicator for background command
 };
 
 
@@ -70,7 +74,13 @@ static void command_append_arg(command* c, char* word) {
 pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
-    fprintf(stderr, "start_command not done yet\n");
+	pid_t pidc = fork();
+	if (pidc == 0) {
+		execvp(c->argv[0],c->argv);
+	}
+	c->pid = pidc;
+	//c->pid = pid_c;
+    //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
 }
 
@@ -95,8 +105,22 @@ pid_t start_command(command* c, pid_t pgid) {
 //       - Cancel the list when you detect interruption.
 
 void run_list(command* c) {
-    start_command(c, 0);
-    fprintf(stderr, "run_command not done yet\n");
+	int status;
+	int is_bg = FALSE;
+	pid_t pid_c;
+	pid_t pidc;
+	
+	if (c->is_back == TRUE) {
+		is_bg = TRUE;
+		//pid_t pidb = fork();
+		//c->pid = pidb;
+		//printf("process forked\n");
+		return;
+	}
+    pid_c = start_command(c, 0);
+	pidc = waitpid(pid_c, &status, 0);
+	//assert(pid_c == pidc);
+    //fprintf(stderr, "run_command not done yet\n");
 }
 
 
@@ -107,12 +131,21 @@ void eval_line(const char* s) {
     int type;
     char* token;
     // Your code here!
+	int slen = strlen(s);
 
-    // build the command
+	// build the command
     command* c = command_alloc();
-    while ((s = parse_shell_token(s, &type, &token)) != NULL)
-        command_append_arg(c, token);
 
+	for (int i=0; i < slen; ++i) {
+		if (s[i] == '&') {
+			c->is_back = TRUE;
+			//printf("background process present @ %d\n",i);
+		}
+	}
+
+    while ((s = parse_shell_token(s, &type, &token)) != NULL) {
+		command_append_arg(c, token);
+	}
     // execute it
     if (c->argc)
         run_list(c);

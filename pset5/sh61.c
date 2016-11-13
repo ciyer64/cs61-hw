@@ -16,7 +16,7 @@ struct command {
     int argc;      // number of arguments
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
-	int is_back;   // indicator for background command
+	int type;	   // token type
 };
 
 
@@ -28,6 +28,7 @@ static command* command_alloc(void) {
     c->argc = 0;
     c->argv = NULL;
     c->pid = -1;
+	//c->is_back = 0;
     return c;
 }
 
@@ -78,8 +79,9 @@ pid_t start_command(command* c, pid_t pgid) {
 	if (pidc == 0) {
 		execvp(c->argv[0],c->argv);
 	}
-	c->pid = pidc;
-	//c->pid = pid_c;
+	else {
+		c->pid = pidc;
+	}
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
 }
@@ -106,19 +108,35 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	int status;
-	int is_bg = FALSE;
-	pid_t pid_c;
+	//int is_bg = FALSE;
 	pid_t pidc;
-	
+
+	if (c->type != TOKEN_BACKGROUND) {
+		pidc = start_command(c, 0);
+		waitpid(pidc,&status,0);
+	}
+	else {
+		pid_t pidb = fork();
+		if (pidb == 0) {
+			start_command(c,0);
+			exit(0);
+		}
+		else {
+			return;
+		}
+	}
+	/*
 	if (c->is_back == TRUE) {
 		is_bg = TRUE;
 		//pid_t pidb = fork();
 		//c->pid = pidb;
 		//printf("process forked\n");
-		return;
+		//pid_c = start_command(c, 0);
 	}
-    pid_c = start_command(c, 0);
-	pidc = waitpid(pid_c, &status, 0);
+	else {
+		pidc = waitpid(pid_c, &status, 0);
+	}
+	*/
 	//assert(pid_c == pidc);
     //fprintf(stderr, "run_command not done yet\n");
 }
@@ -136,15 +154,20 @@ void eval_line(const char* s) {
 	// build the command
     command* c = command_alloc();
 
-	for (int i=0; i < slen; ++i) {
-		if (s[i] == '&') {
-			c->is_back = TRUE;
-			//printf("background process present @ %d\n",i);
-		}
-	}
-
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
-		command_append_arg(c, token);
+		//command_append_arg(c, token);
+
+		while (type == TOKEN_NORMAL) {
+			command_append_arg(c, token);
+			s = parse_shell_token(s, &type, &token);
+		}
+
+		if (s != NULL && type == TOKEN_BACKGROUND) {
+			c->type = TOKEN_BACKGROUND;
+		}
+
+
+		
 	}
     // execute it
     if (c->argc)

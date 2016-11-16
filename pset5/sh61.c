@@ -16,9 +16,12 @@ struct command {
     int argc;      // number of arguments
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
-	int type;	   // token type
+	int type;	   // token type (i.e. background)
+	command* next; // next command in list
 };
 
+//command* head;
+//command* tail;
 
 // command_alloc()
 //    Allocate and return a new command structure.
@@ -37,12 +40,24 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
-    for (int i = 0; i != c->argc; ++i)
-        free(c->argv[i]);
-    free(c->argv);
-    free(c);
+	command* tmp = c;
+	while (tmp){
+		c = tmp;
+    	for (int i = 0; i != c->argc; ++i)
+        	free(c->argv[i]);
+    	free(c->argv);
+		tmp = c->next;
+    	free(c);
+	}
 }
 
+// insert_tail()
+
+void insert_tail(command* n) {
+	command* cmdn = command_alloc();
+	n->next = cmdn;
+	return cmdn;
+}
 
 // command_append_arg(c, word)
 //    Add `word` as an argument to command `c`. This increments `c->argc`
@@ -76,12 +91,10 @@ pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
 	pid_t pidc = fork();
-	if (pidc == 0) {
+	if (pidc == 0)
 		execvp(c->argv[0],c->argv);
-	}
-	else {
+	else
 		c->pid = pidc;
-	}
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
 }
@@ -109,35 +122,15 @@ pid_t start_command(command* c, pid_t pgid) {
 void run_list(command* c) {
 	int status;
 	//int is_bg = FALSE;
-	pid_t pidc;
-
-	if (c->type != TOKEN_BACKGROUND) {
-		pidc = start_command(c, 0);
-		waitpid(pidc,&status,0);
-	}
-	else {
-		pid_t pidb = fork();
-		if (pidb == 0) {
-			start_command(c,0);
-			exit(0);
+	while (c) {
+		start_command(c, 0);
+		if (c->type != TOKEN_BACKGROUND) {
+			//pidc = start_command(c, 0);
+			waitpid(c->pid, &status, 0);
+			//assert(pidc==pid_c);
 		}
-		else {
-			return;
-		}
+		c = c->next;
 	}
-	/*
-	if (c->is_back == TRUE) {
-		is_bg = TRUE;
-		//pid_t pidb = fork();
-		//c->pid = pidb;
-		//printf("process forked\n");
-		//pid_c = start_command(c, 0);
-	}
-	else {
-		pidc = waitpid(pid_c, &status, 0);
-	}
-	*/
-	//assert(pid_c == pidc);
     //fprintf(stderr, "run_command not done yet\n");
 }
 
@@ -149,29 +142,28 @@ void eval_line(const char* s) {
     int type;
     char* token;
     // Your code here!
-	int slen = strlen(s);
 
 	// build the command
     command* c = command_alloc();
-
+	command* curr = c;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
-		//command_append_arg(c, token);
-
-		while (type == TOKEN_NORMAL) {
-			command_append_arg(c, token);
-			s = parse_shell_token(s, &type, &token);
+		// normal token
+		if (type == TOKEN_NORMAL) {
+			command_append_arg(curr,token);
 		}
-
-		if (s != NULL && type == TOKEN_BACKGROUND) {
-			c->type = TOKEN_BACKGROUND;
+		else if (type == TOKEN_BACKGROUND) {
+			curr->type = type;
+			curr->next = command_alloc();
+			curr = curr->next;
 		}
-
-
-		
+		else if (type == TOKEN_SEQUENCE) {
+			curr->next = command_alloc();
+			curr = curr->next;
+		}	
 	}
     // execute it
-    if (c->argc)
-        run_list(c);
+	//if (c->argc)
+	run_list(c);
     command_free(c);
 }
 

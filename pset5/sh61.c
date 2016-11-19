@@ -7,7 +7,6 @@
 #define TRUE 1
 #define FALSE 0
 
-
 // struct command
 //    Data structure describing a command. Add your own stuff.
 
@@ -31,7 +30,6 @@ static command* command_alloc(void) {
     c->argc = 0;
     c->argv = NULL;
     c->pid = -1;
-	//c->is_back = 0;
     return c;
 }
 
@@ -53,11 +51,12 @@ static void command_free(command* c) {
 
 // insert_tail()
 
-void insert_tail(command* n) {
+command* insert_tail(command* n) {
 	command* cmdn = command_alloc();
 	n->next = cmdn;
 	return cmdn;
 }
+
 
 // command_append_arg(c, word)
 //    Add `word` as an argument to command `c`. This increments `c->argc`
@@ -91,10 +90,14 @@ pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
 	pid_t pidc = fork();
-	if (pidc == 0)
+	if (pidc == 0) {
 		execvp(c->argv[0],c->argv);
-	else
 		c->pid = pidc;
+	}
+	else if (pidc == -1) {
+		_exit(1);
+		return -1;
+	}
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
 }
@@ -123,11 +126,16 @@ void run_list(command* c) {
 	int status;
 	//int is_bg = FALSE;
 	while (c) {
-		start_command(c, 0);
 		if (c->type != TOKEN_BACKGROUND) {
-			//pidc = start_command(c, 0);
+			start_command(c, 0);
 			waitpid(c->pid, &status, 0);
-			//assert(pidc==pid_c);
+		}
+		else {
+			pid_t pidc = fork();
+			if (pidc == 0) {
+				start_command(c,0);
+				_exit(0);
+			}
 		}
 		c = c->next;
 	}
@@ -151,19 +159,21 @@ void eval_line(const char* s) {
 		if (type == TOKEN_NORMAL) {
 			command_append_arg(curr,token);
 		}
+		// background token
 		else if (type == TOKEN_BACKGROUND) {
 			curr->type = type;
 			curr->next = command_alloc();
 			curr = curr->next;
 		}
+		// sequence token
 		else if (type == TOKEN_SEQUENCE) {
 			curr->next = command_alloc();
 			curr = curr->next;
 		}	
 	}
     // execute it
-	//if (c->argc)
-	run_list(c);
+	if (c->argc)
+		run_list(c);
     command_free(c);
 }
 

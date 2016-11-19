@@ -92,11 +92,10 @@ pid_t start_command(command* c, pid_t pgid) {
 	pid_t pidc = fork();
 	if (pidc == 0) {
 		execvp(c->argv[0],c->argv);
-		c->pid = pidc;
+		//c->pid = pidc;
 	}
 	else if (pidc == -1) {
 		_exit(1);
-		return -1;
 	}
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;

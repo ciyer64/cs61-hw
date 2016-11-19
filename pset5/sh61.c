@@ -16,6 +16,7 @@ struct command {
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
 	int type;	   // token type (i.e. background)
+	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
 };
 
@@ -30,6 +31,7 @@ static command* command_alloc(void) {
     c->argc = 0;
     c->argv = NULL;
     c->pid = -1;
+	c->tag = 0;
     return c;
 }
 
@@ -92,11 +94,13 @@ pid_t start_command(command* c, pid_t pgid) {
 	pid_t pidc = fork();
 	if (pidc == 0) {
 		execvp(c->argv[0],c->argv);
-		//c->pid = pidc;
+		c->pid = pidc;
 	}
 	else if (pidc == -1) {
 		_exit(1);
+		return -1;
 	}
+	//c->pid = pidc;
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
 }
@@ -123,14 +127,15 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	int status;
-	//int is_bg = FALSE;
 	while (c) {
+		//printf("%d",c->tag);
+		pid_t pidc;
 		if (c->type != TOKEN_BACKGROUND) {
-			start_command(c, 0);
-			waitpid(c->pid, &status, 0);
+			pidc = start_command(c, 0);
+			waitpid(pidc, &status, 0);
 		}
 		else {
-			pid_t pidc = fork();
+			pidc = fork();
 			if (pidc == 0) {
 				start_command(c,0);
 				_exit(0);
@@ -162,11 +167,13 @@ void eval_line(const char* s) {
 		else if (type == TOKEN_BACKGROUND) {
 			curr->type = type;
 			curr->next = command_alloc();
+			curr->next->tag = curr->tag+1;
 			curr = curr->next;
 		}
 		// sequence token
 		else if (type == TOKEN_SEQUENCE) {
 			curr->next = command_alloc();
+			curr->next->tag = curr->tag+1;
 			curr = curr->next;
 		}	
 	}

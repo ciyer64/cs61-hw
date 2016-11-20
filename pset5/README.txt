@@ -1,3 +1,5 @@
+DO NOT GRADE
+
 README for CS 61 Problem Set 5
 ------------------------------
 YOU MUST FILL OUT THIS FILE BEFORE SUBMITTING!

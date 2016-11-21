@@ -146,26 +146,86 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	int status;
+	int moveOn = 0;
 	while (c) {
 		//pid_t pidc = start_command(c,0);
 		// if not background, wait
 		if (c->type != TOKEN_BACKGROUND) {
 			//waitpid(pidc, &status, 0);
-			command* curr = c;
-			run_vert(curr);
+			//command* curr = c;
+			//run_vert(curr);
+			if (c->ctype == 0) {
+				pid_t pidc = start_command(c, 0);
+				waitpid(pidc, &status, 0);
+			}
+			else {
+				pid_t pidc = start_command(c, 0);
+				waitpid(pidc, &status, 0);
+				if (WIFEXITED(status)) {
+					if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) || 
+						(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
+						run_list(c->up);
+					}
+					else
+						moveOn = 1;
+				}
+			}
 		}
 		// else fork, and do similar as in start command
+		else if (c->ctype == 0) {
+			pid_t f = fork();
+			if (f == 0) {
+				pid_t pidc = start_command(c, 0);
+				waitpid(pidc, &status, 0);
+				if (WIFEXITED(status)) {
+					if (WEXITSTATUS(status) == 0) {
+						_exit(0);
+					}
+				}
+			}
+		}
+		else {
+			pid_t f = fork();
+			if (f == 0) {
+				pid_t pidc = start_command(c, 0);
+				waitpid(pidc, &status, 0);
+				if (WIFEXITED(status)) {
+					if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) ||
+						(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
+						pid_t pdc = start_command(c->up, 0);
+						//waitpid(pdc, NULL, 0);
+					}
+					_exit(0);
+				}
+			}
+		}
+		if (moveOn) {
+			if (c->up) {
+				c = c->up;
+				if (c->up) {
+					c = c->up;
+				}
+				else {
+					c = c->next;
+				}
+			}
+		}
+		else {
+			c = c->next;
+		}
+		/*
 		else {
 			pid_t f = fork();
 			if (f <= 0) {
 				if (f == 0) {
-					command* curr = c;
-					run_vert(curr);
+					//command* curr = c;
+					//run_vert(curr);
 				}
 				_exit(1);
 			}
 		}
 		c = c->next;
+		*/
 	}
     //fprintf(stderr, "run_command not done yet\n");
 }
@@ -174,7 +234,9 @@ void run_vert(command* c) {
 	int status;
 	while (c) {
 		pid_t pidc = start_command(c, 0);
-		waitpid(pidc, &status, 0);
+		//if (c->type != TOKEN_BACKGROUND) {
+			waitpid(pidc, &status, 0);
+		//}
 		if (c->ctype) {
 			if (WIFEXITED(status)) {
 				if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 

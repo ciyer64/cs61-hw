@@ -175,12 +175,14 @@ void run_vert(command* c) {
 	while (c) {
 		pid_t pidc = start_command(c, 0);
 		waitpid(pidc, &status, 0);
-		if (WIFEXITED(status)) {
-			if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 
-				(WEXITSTATUS(status) == 0 && c->ctype == TOKEN_OR)) {
-				_exit(0);
-				break;
-			}  
+		if (c->ctype) {
+			if (WIFEXITED(status)) {
+				if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 
+					(WEXITSTATUS(status) == 0 && c->ctype == TOKEN_OR)) {
+					_exit(0);
+					break;
+				}  
+			}
 		}
 		c = c->up;
 	}

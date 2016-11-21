@@ -15,7 +15,8 @@ struct command {
     int argc;      // number of arguments
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
-	int type;	   // token type (i.e. background)
+	int type;	   // command type (i.e. background or not)
+	int ctype;	   // condition type (and / or)
 	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
 	command* prev; // prev command in list
@@ -147,21 +148,21 @@ void run_list(command* c) {
 	int status;
 	while (c) {
 		//command* curr = c;
-		pid_t pidc = start_command(c,0);
+		//pid_t pidc = start_command(c,0);
 		// wait only if not background
 		if (c->type != TOKEN_BACKGROUND) {
-			waitpid(pidc, &status, 0);
-			//command* curr = c;
-			//run_vert(curr);
+			//waitpid(pidc, &status, 0);
+			command* curr = c;
+			run_vert(curr);
 		}
 		// otherwise fork, and do similar as in start command
 		else {
 			pid_t f = fork();
 			if (f <= 0) {
-				//if (f == 0) {
-					//command* curr = c;
-					//run_vert(curr);
-				//}
+				if (f == 0) {
+					command* curr = c;
+					run_vert(curr);
+				}
 				_exit(1);
 			}
 		}
@@ -175,7 +176,16 @@ void run_vert(command* c) {
 	while (c) {
 		pid_t pidc = start_command(c, 0);
 		waitpid(pidc, &status, 0);
-		c = c->up;
+		if (WIFEXITED(status)) {
+			if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) || 
+				(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
+				c=c->up;
+			}
+			else {
+				_exit(0);
+				break;
+			}	
+		}
 	}
 }
 
@@ -202,30 +212,15 @@ void eval_line(const char* s) {
 			command_append_arg(curr, token);
 		}
 		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-			curr->type = type;
+			curr->ctype = type;
 			command_add(curr, type);
 			curr = curr->next;
 		}
 		else if (type == TOKEN_AND || type == TOKEN_OR) {
-			curr->type = type;
+			curr->ctype = type;
 			command_add(curr, type);
 			curr = curr -> up;
 		}
-		/*
-		else {
-			//curr->type = type;
-			command_add(curr,type);
-			// parts 2-3: background/sequence
-			if ((type = TOKEN_BACKGROUND) || (type == TOKEN_SEQUENCE)) {
-				curr = curr->next;
-			}
-			// part 4: conditionals
-			else if ((type = TOKEN_AND) || (type == TOKEN_OR)) {
-				//printf("hey");	
-				curr = curr->up;
-			}
-		}
-		*/
 	}
     // execute it
 	if (c->argc)

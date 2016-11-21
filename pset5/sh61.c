@@ -160,8 +160,8 @@ void run_list(command* c) {
 			}
 		}
 		else {
-			run_vert(c);
-			/*
+			//run_vert(c);
+			
 			if (c->up) {
 				run_vert(c);
 			}
@@ -170,7 +170,7 @@ void run_list(command* c) {
 				pid_t pidc = start_command(c, 0);
 				waitpid(pidc, &status, 0);
 			}
-			*/
+			
 			c = c->next;
 		}
 	}
@@ -178,25 +178,37 @@ void run_list(command* c) {
 }
 
 void run_vert(command* c) {
-	//pid_t pidc = start_command(c,0);
-	//waitpid(pidc, &status, 0);
-	//if (WIFEXITED(status)) {
-	//	status = WEXITSTATUS(status);
-	//}
-	//c = c->up;
+	int status;
 	while (c) {
-		int status = 0;
-		pid_t pc = start_command(c, 0);
-		waitpid(pc, &status, 0);
-		if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 
-			(WEXITSTATUS(status) == 0 && c->ctype == TOKEN_OR)) {
+		/*
+		if ((status != 0 && c->ctype == TOKEN_OR) ||
+			(status == 0 && c->ctype == TOKEN_AND)) {
+			pid_t pc = start_command(c, 0);
+			waitpid(pc, &status, 0);
+			if (WIFEXITED(status)) {
+				status = WEXITSTATUS(status);
+			}
+		}
+		else if ((status != 0 && c->ctype == TOKEN_AND) ||
+			(status == 0 && c->ctype == TOKEN_OR)) {
 			_exit(status);
 			break;
-			//pid_t pc = start_command(c, 0);
-			//waitpid(pc, &status, 0);
-			//if (WIFEXITED(status)) {
-			//	status = WEXITSTATUS(status);
-			//}		
+		}
+		*/
+		pid_t pc = start_command(c, 0);
+		waitpid(pc, &status, 0);	
+		if (WIFEXITED(status)) {
+			status = WEXITSTATUS(status);
+			if ((status != 0 && c->ctype == TOKEN_AND) || 
+				(status == 0 && c->ctype == TOKEN_OR)) {
+				//status = WEXITSTATUS(status);
+				_exit(status);
+				//break;
+			}
+			else {
+				c = c->up;
+				continue;
+			}	
 		}
 		c = c->up;
 	}

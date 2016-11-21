@@ -23,6 +23,8 @@ struct command {
 	command* down; // more conditionals yay
 };
 
+void run_vert(command* c);
+
 //command* head;
 //command* tail;
 
@@ -40,23 +42,21 @@ static command* command_alloc(void) {
 
 // command_add(c)
 //    Add next command to list.
-command* command_add(command* c, int type) {
+void command_add(command* c, int type) {
 	if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
 		command* cnext = command_alloc();
 		c->next = cnext;
 		c->next->tag = c->tag+1;
 		c->next->prev = c;
-		return c->next;
+		//return c->next;
 	}
-	else if (type == TOKEN_AND || type == TOKEN_OR) {
+	else if ((type == TOKEN_AND) || (type == TOKEN_OR)) {
+		//printf("we're going up!");
 		command* ccond = command_alloc();
 		c->up = ccond;
 		//c->next->tag = c->tag+1;
-		c->up->down=c;
-		return c->up;
-	}
-	else {
-		return c;
+		c->up->down = c;
+		//return c->up;
 	}
 }
 
@@ -108,14 +108,16 @@ pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
 	pid_t pidc = fork();
-	// child process
+
+	// child process or fork error
 	if (pidc <= 0) {
+		// child process
 		if (pidc == 0)
 			execvp(c->argv[0],c->argv);
 		_exit(1);
 		return c->pid;
 	}
-	// parent
+	// parent process: update pid
 	c->pid = pidc;
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
@@ -143,21 +145,38 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	int status;
-	while (c != NULL) {
-
+	while (c) {
+		//command* curr = c;
 		pid_t pidc = start_command(c,0);
+		// wait only if not background
 		if (c->type != TOKEN_BACKGROUND) {
 			waitpid(pidc, &status, 0);
+			//command* curr = c;
+			//run_vert(curr);
 		}
+		// otherwise fork, and do similar as in start command
 		else {
 			pid_t f = fork();
 			if (f <= 0) {
+				//if (f == 0) {
+					//command* curr = c;
+					//run_vert(curr);
+				//}
 				_exit(1);
 			}
 		}
 		c = c->next;
 	}
     //fprintf(stderr, "run_command not done yet\n");
+}
+
+void run_vert(command* c) {
+	int status;
+	while (c) {
+		pid_t pidc = start_command(c, 0);
+		waitpid(pidc, &status, 0);
+		c = c->up;
+	}
 }
 
 
@@ -170,38 +189,41 @@ void eval_line(const char* s) {
     // Your code here!
 
 	// build the command
+	// initialize "head"
     command* c = command_alloc();
+
+	// cursor used for traversing & building
 	command* curr = c;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
+
 		// normal token
-		switch(type) {
-
-			// background
-			case TOKEN_BACKGROUND:
-				curr->type = type;
-				command_add(curr, type);
-				//curr->next->prev = curr;
-				curr = curr->next;
-				break;
-
-			// sequence
-			case TOKEN_SEQUENCE:
-				curr->type = type;
-				command_add(curr, type);
-				//curr->next->prev = curr;
-				curr = curr->next;
-				break;
-
-			// normal
-			default:
-				command_append_arg(curr,token);	
+		//curr->type = type;
+		if (type == TOKEN_NORMAL) {
+			command_append_arg(curr, token);
 		}
-		/*
+		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
+			curr->type = type;
+			command_add(curr, type);
+			curr = curr->next;
+		}
 		else if (type == TOKEN_AND || type == TOKEN_OR) {
 			curr->type = type;
-			curr->up = command_add(curr, type);
-			curr->up->down = curr;
-			curr = curr->up;
+			command_add(curr, type);
+			curr = curr -> up;
+		}
+		/*
+		else {
+			//curr->type = type;
+			command_add(curr,type);
+			// parts 2-3: background/sequence
+			if ((type = TOKEN_BACKGROUND) || (type == TOKEN_SEQUENCE)) {
+				curr = curr->next;
+			}
+			// part 4: conditionals
+			else if ((type = TOKEN_AND) || (type == TOKEN_OR)) {
+				//printf("hey");	
+				curr = curr->up;
+			}
 		}
 		*/
 	}

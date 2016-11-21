@@ -27,7 +27,7 @@ struct command {
 
 void run_vert(command* c);
 
-//command* head;
+command* head;
 //command* tail;
 
 // command_alloc()
@@ -46,19 +46,17 @@ static command* command_alloc(void) {
 //    Add next command to list.
 void command_add(command* c, int type) {
 	if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-		command* cnext = command_alloc();
-		c->next = cnext;
+		//command* cnext = command_alloc();
+		c->next = command_alloc();
 		c->next->tag = c->tag+1;
 		c->next->prev = c;
-		//return c->next;
 	}
 	else if ((type == TOKEN_AND) || (type == TOKEN_OR)) {
 		//printf("we're going up!");
-		command* ccond = command_alloc();
-		c->up = ccond;
-		//c->next->tag = c->tag+1;
+		//command* ccond = command_alloc();
+		c->up = command_alloc();
+		c->up->type = c->type; // background affects whole conditional
 		c->up->down = c;
-		//return c->up;
 	}
 }
 
@@ -146,99 +144,59 @@ pid_t start_command(command* c, pid_t pgid) {
 //       - Cancel the list when you detect interruption.
 
 void run_list(command* c) {
-	//int moveOn = 0;
 	while (c) {
-		//pid_t pidc = start_command(c,0);
-		// if not background, wait
-		int status = 0;
-		if (c->type != TOKEN_BACKGROUND) {
-			//waitpid(pidc, &status, 0);
-			//command* curr = c;
-			//run_vert(curr);
-			pid_t pidc = start_command(c, 0);
-			waitpid(pidc, &status, 0);
-			if (c->ctype != 0) {
-				if (WIFEXITED(status)) {
-					if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) || 
-						(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
-						run_list(c->up);
-					}
-					else
-						c->cont = 1;
-				}
-			}
-		}
-		// else fork, and do similar as in start command
-		else {
+		if (c->type == TOKEN_BACKGROUND) {
 			pid_t f = fork();
 			if (f == 0) {
-				pid_t pidc = start_command(c, 0);
-				waitpid(pidc, &status, 0);
-				if (c->ctype == 0) {
-					if (WIFEXITED(status)) {
-						if (WEXITSTATUS(status) == 0) {
-							_exit(0);
-						}
-					}
-				}
-				else {
-					if (WIFEXITED(status)) {
-						if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) ||
-							(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
-							pid_t pdc = start_command(c->up, 0);
-							waitpid(pdc, NULL, 0);
-						}
-						_exit(0);
-					}
-				}
+				run_vert(c);
+				_exit(1);
 			}
-		}
-		if (c->cont) {
-			if (c->up) {
-				c = c->up;
-				if (c->up) {
-					c = c->up;
-				}
-				else {
-					c = c->next;
-				}
+			else if (f > 0) {
+				c = c->next;
+				continue;
 			}
-		}
-		else {
-			c = c->next;
-		}
-		/*
-		else {
-			pid_t f = fork();
-			if (f <= 0) {
-				if (f == 0) {
-					//command* curr = c;
-					//run_vert(curr);
-				}
+			else if (f == -1) {
 				_exit(1);
 			}
 		}
-		c = c->next;
-		*/
+		else {
+			run_vert(c);
+			/*
+			if (c->up) {
+				run_vert(c);
+			}
+			else {
+				int status;
+				pid_t pidc = start_command(c, 0);
+				waitpid(pidc, &status, 0);
+			}
+			*/
+			c = c->next;
+		}
 	}
     //fprintf(stderr, "run_command not done yet\n");
 }
 
 void run_vert(command* c) {
-	int status;
+	//pid_t pidc = start_command(c,0);
+	//waitpid(pidc, &status, 0);
+	//if (WIFEXITED(status)) {
+	//	status = WEXITSTATUS(status);
+	//}
+	//c = c->up;
 	while (c) {
-		pid_t pidc = start_command(c, 0);
-		//if (c->type != TOKEN_BACKGROUND) {
-			waitpid(pidc, &status, 0);
-		//}
-		if (c->ctype) {
-			if (WIFEXITED(status)) {
-				if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 
-					(WEXITSTATUS(status) == 0 && c->ctype == TOKEN_OR)) {
-					_exit(0);
-					break;
-				}  
-			}
+		int status = 0;
+		pid_t pc = start_command(c, 0);
+		waitpid(pc, &status, 0);
+		if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 
+			(WEXITSTATUS(status) == 0 && c->ctype == TOKEN_OR)) {
+			_exit(status);
+			break;
+			//pid_t pc = start_command(c, 0);
+			//waitpid(pc, &status, 0);
+			//if (WIFEXITED(status)) {
+			//	status = WEXITSTATUS(status);
+			//}		
 		}
 		c = c->up;
 	}
@@ -255,32 +213,40 @@ void eval_line(const char* s) {
 
 	// build the command
 	// initialize "head"
-    command* c = command_alloc();
-
+    //command* c = command_alloc();
+	head = command_alloc();
 	// cursor used for traversing & building
-	command* curr = c;
+	command* curr = head;
+	command* top = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
 		// normal token
 		//curr->type = type;
-		if (type == TOKEN_NORMAL) {
-			command_append_arg(curr, token);
+		//if (type == TOKEN_NORMAL) {
+		//	command_append_arg(curr, token);
+		//}
+		if (type == TOKEN_AND || type == TOKEN_OR) {
+			curr->up = command_alloc();
+			curr->ctype = type;
+			curr = curr->up;
 		}
 		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-			curr->type = type;
-			command_add(curr, type);
-			curr = curr->next;
+			top->next = command_alloc();
+			if (type == TOKEN_BACKGROUND) {			
+				top->type = type;
+			}
+			//command_add(curr, type);
+			curr = top->next;
+			top = curr;
 		}
-		else if (type == TOKEN_AND || type == TOKEN_OR) {
-			curr->ctype = type;
-			command_add(curr, type);
-			curr = curr -> up;
+		else {
+			command_append_arg(curr, token);
 		}
 	}
     // execute it
-	if (c->argc)
-		run_list(c);
-    command_free(c);
+	if (head->argc)
+		run_list(head);
+    command_free(head);
 }
 
 

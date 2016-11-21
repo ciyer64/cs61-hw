@@ -22,6 +22,7 @@ struct command {
 	command* prev; // prev command in list
 	command* up;   // yay conditionals
 	command* down; // more conditionals yay
+	int cont;	   // indicator to wait or continue
 };
 
 void run_vert(command* c);
@@ -145,61 +146,54 @@ pid_t start_command(command* c, pid_t pgid) {
 //       - Cancel the list when you detect interruption.
 
 void run_list(command* c) {
-	int status;
-	int moveOn = 0;
+	//int moveOn = 0;
 	while (c) {
 		//pid_t pidc = start_command(c,0);
 		// if not background, wait
+		int status = 0;
 		if (c->type != TOKEN_BACKGROUND) {
 			//waitpid(pidc, &status, 0);
 			//command* curr = c;
 			//run_vert(curr);
-			if (c->ctype == 0) {
-				pid_t pidc = start_command(c, 0);
-				waitpid(pidc, &status, 0);
-			}
-			else {
-				pid_t pidc = start_command(c, 0);
-				waitpid(pidc, &status, 0);
+			pid_t pidc = start_command(c, 0);
+			waitpid(pidc, &status, 0);
+			if (c->ctype != 0) {
 				if (WIFEXITED(status)) {
 					if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) || 
 						(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
 						run_list(c->up);
 					}
 					else
-						moveOn = 1;
+						c->cont = 1;
 				}
 			}
 		}
 		// else fork, and do similar as in start command
-		else if (c->ctype == 0) {
-			pid_t f = fork();
-			if (f == 0) {
-				pid_t pidc = start_command(c, 0);
-				waitpid(pidc, &status, 0);
-				if (WIFEXITED(status)) {
-					if (WEXITSTATUS(status) == 0) {
-						_exit(0);
-					}
-				}
-			}
-		}
 		else {
 			pid_t f = fork();
 			if (f == 0) {
 				pid_t pidc = start_command(c, 0);
 				waitpid(pidc, &status, 0);
-				if (WIFEXITED(status)) {
-					if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) ||
-						(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
-						pid_t pdc = start_command(c->up, 0);
-						//waitpid(pdc, NULL, 0);
+				if (c->ctype == 0) {
+					if (WIFEXITED(status)) {
+						if (WEXITSTATUS(status) == 0) {
+							_exit(0);
+						}
 					}
-					_exit(0);
+				}
+				else {
+					if (WIFEXITED(status)) {
+						if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) ||
+							(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
+							pid_t pdc = start_command(c->up, 0);
+							waitpid(pdc, NULL, 0);
+						}
+						_exit(0);
+					}
 				}
 			}
 		}
-		if (moveOn) {
+		if (c->cont) {
 			if (c->up) {
 				c = c->up;
 				if (c->up) {

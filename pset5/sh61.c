@@ -147,15 +147,14 @@ pid_t start_command(command* c, pid_t pgid) {
 void run_list(command* c) {
 	int status;
 	while (c) {
-		//command* curr = c;
 		//pid_t pidc = start_command(c,0);
-		// wait only if not background
+		// if not background, wait
 		if (c->type != TOKEN_BACKGROUND) {
 			//waitpid(pidc, &status, 0);
 			command* curr = c;
 			run_vert(curr);
 		}
-		// otherwise fork, and do similar as in start command
+		// else fork, and do similar as in start command
 		else {
 			pid_t f = fork();
 			if (f <= 0) {
@@ -177,15 +176,13 @@ void run_vert(command* c) {
 		pid_t pidc = start_command(c, 0);
 		waitpid(pidc, &status, 0);
 		if (WIFEXITED(status)) {
-			if ((WEXITSTATUS(status) == 0 && c->ctype == TOKEN_AND) || 
-				(WEXITSTATUS(status) != 0 && c->ctype == TOKEN_OR)) {
-				c=c->up;
-			}
-			else {
+			if ((WEXITSTATUS(status) != 0 && c->ctype == TOKEN_AND) || 
+				(WEXITSTATUS(status) == 0 && c->ctype == TOKEN_OR)) {
 				_exit(0);
 				break;
-			}	
+			}  
 		}
+		c = c->up;
 	}
 }
 
@@ -212,7 +209,7 @@ void eval_line(const char* s) {
 			command_append_arg(curr, token);
 		}
 		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-			curr->ctype = type;
+			curr->type = type;
 			command_add(curr, type);
 			curr = curr->next;
 		}

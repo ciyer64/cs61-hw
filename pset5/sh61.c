@@ -18,6 +18,9 @@ struct command {
 	int type;	   // token type (i.e. background)
 	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
+	command* prev; // prev command in list
+	command* up;   // yay conditionals
+	command* down; // more conditionals yay
 };
 
 //command* head;
@@ -35,6 +38,25 @@ static command* command_alloc(void) {
     return c;
 }
 
+// command_add(c)
+//    Add next command to list.
+command* command_add(command* c, int type) {
+	if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
+		command* cnext = command_alloc();
+		c->next = cnext;
+		c->next->tag = c->tag+1;
+		return c->next;
+	}
+	else if (type == TOKEN_AND || type == TOKEN_OR) {
+		command* ccond = command_alloc();
+		c->up = ccond;
+		//c->next->tag = c->tag+1;
+		return c->up;
+	}
+	else {
+		return c;
+	}
+}
 
 // command_free(c)
 //    Free command structure `c`, including all its words.
@@ -49,14 +71,6 @@ static void command_free(command* c) {
 		tmp = c->next;
     	free(c);
 	}
-}
-
-// insert_tail()
-
-command* insert_tail(command* n) {
-	command* cmdn = command_alloc();
-	n->next = cmdn;
-	return cmdn;
 }
 
 
@@ -92,15 +106,15 @@ pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
 	pid_t pidc = fork();
-	if (pidc == 0) {
-		execvp(c->argv[0],c->argv);
-		c->pid = pidc;
-	}
-	else if (pidc == -1) {
+	// child process
+	if (pidc <= 0) {
+		if (pidc == 0)
+			execvp(c->argv[0],c->argv);
 		_exit(1);
-		return -1;
+		return c->pid;
 	}
-	//c->pid = pidc;
+	// parent
+	c->pid = pidc;
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
 }
@@ -127,18 +141,16 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	int status;
-	while (c) {
-		//printf("%d",c->tag);
-		pid_t pidc;
+	while (c != NULL) {
+
+		pid_t pidc = start_command(c,0);
 		if (c->type != TOKEN_BACKGROUND) {
-			pidc = start_command(c, 0);
 			waitpid(pidc, &status, 0);
 		}
 		else {
-			pidc = fork();
-			if (pidc == 0) {
-				start_command(c,0);
-				_exit(0);
+			pid_t f = fork();
+			if (f <= 0) {
+				_exit(1);
 			}
 		}
 		c = c->next;
@@ -160,22 +172,36 @@ void eval_line(const char* s) {
 	command* curr = c;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 		// normal token
-		if (type == TOKEN_NORMAL) {
-			command_append_arg(curr,token);
+		switch(type) {
+
+			// background
+			case TOKEN_BACKGROUND:
+				curr->type = type;
+				curr->next = command_add(curr, type);
+				curr->next->prev = curr;
+				curr = curr->next;
+				break;
+
+			// sequence
+			case TOKEN_SEQUENCE:
+				curr->type = type;
+				curr->next = command_add(curr, type);
+				curr->next->prev = curr;
+				curr = curr->next;
+				break;
+
+			// normal
+			default:
+				command_append_arg(curr,token);	
 		}
-		// background token
-		else if (type == TOKEN_BACKGROUND) {
+		/*
+		else if (type == TOKEN_AND || type == TOKEN_OR) {
 			curr->type = type;
-			curr->next = command_alloc();
-			curr->next->tag = curr->tag+1;
-			curr = curr->next;
+			curr->up = command_add(curr, type);
+			curr->up->down = curr;
+			curr = curr->up;
 		}
-		// sequence token
-		else if (type == TOKEN_SEQUENCE) {
-			curr->next = command_alloc();
-			curr->next->tag = curr->tag+1;
-			curr = curr->next;
-		}	
+		*/
 	}
     // execute it
 	if (c->argc)

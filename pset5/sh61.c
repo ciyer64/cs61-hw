@@ -45,12 +45,14 @@ command* command_add(command* c, int type) {
 		command* cnext = command_alloc();
 		c->next = cnext;
 		c->next->tag = c->tag+1;
+		c->next->prev = c;
 		return c->next;
 	}
 	else if (type == TOKEN_AND || type == TOKEN_OR) {
 		command* ccond = command_alloc();
 		c->up = ccond;
 		//c->next->tag = c->tag+1;
+		c->up->down=c;
 		return c->up;
 	}
 	else {
@@ -177,16 +179,16 @@ void eval_line(const char* s) {
 			// background
 			case TOKEN_BACKGROUND:
 				curr->type = type;
-				curr->next = command_add(curr, type);
-				curr->next->prev = curr;
+				command_add(curr, type);
+				//curr->next->prev = curr;
 				curr = curr->next;
 				break;
 
 			// sequence
 			case TOKEN_SEQUENCE:
 				curr->type = type;
-				curr->next = command_add(curr, type);
-				curr->next->prev = curr;
+				command_add(curr, type);
+				//curr->next->prev = curr;
 				curr = curr->next;
 				break;
 

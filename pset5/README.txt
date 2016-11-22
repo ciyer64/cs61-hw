@@ -1,5 +1,3 @@
-DO NOT GRADE
-
 README for CS 61 Problem Set 5
 ------------------------------
 YOU MUST FILL OUT THIS FILE BEFORE SUBMITTING!
@@ -14,3 +12,4 @@ KNOWN BUGS (if any):
 
 
 NOTES FOR THE GRADER (if any):
+This will be resubmitted over reading period per Eddie's policy, thanks!

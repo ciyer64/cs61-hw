@@ -170,10 +170,13 @@ void run_vert(command* c) {
 }
 
 int accum_test(int acc, int ctype, int status) {
+	// first command
 	if (ctype == -2)
 		return (WEXITSTATUS(status) == 0);
+	// command joined by an AND
 	else if (ctype == TOKEN_AND)
 		return (acc && (WEXITSTATUS(status) == 0));
+	// command joined by an OR
 	else if (ctype == TOKEN_OR)
 		return (acc || (WEXITSTATUS(status) == 0));
 	else

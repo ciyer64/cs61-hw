@@ -26,6 +26,8 @@ struct command {
 };
 
 void run_vert(command* c);
+int accum_test(int acc, int ctype, int status);
+int should_run_proc(int acc, int ctype);
 
 command* head;
 //command* tail;
@@ -42,23 +44,6 @@ static command* command_alloc(void) {
     return c;
 }
 
-// command_add(c)
-//    Add next command to list.
-void command_add(command* c, int type) {
-	if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-		//command* cnext = command_alloc();
-		c->next = command_alloc();
-		c->next->tag = c->tag+1;
-		c->next->prev = c;
-	}
-	else if ((type == TOKEN_AND) || (type == TOKEN_OR)) {
-		//printf("we're going up!");
-		//command* ccond = command_alloc();
-		c->up = command_alloc();
-		c->up->type = c->type; // background affects whole conditional
-		c->up->down = c;
-	}
-}
 
 // command_free(c)
 //    Free command structure `c`, including all its words.
@@ -160,17 +145,7 @@ void run_list(command* c) {
 			}
 		}
 		else {
-			//run_vert(c);
-			
-			if (c->up) {
-				run_vert(c);
-			}
-			else {
-				int status;
-				pid_t pidc = start_command(c, 0);
-				waitpid(pidc, &status, 0);
-			}
-			
+			run_vert(c);
 			c = c->next;
 		}
 	}
@@ -178,40 +153,48 @@ void run_list(command* c) {
 }
 
 void run_vert(command* c) {
-	int status;
+	int status = 0;
+	int shouldrun = 1;
+	int accum = 1;
+	int prev_log = -2;
 	while (c) {
-		/*
-		if ((status != 0 && c->ctype == TOKEN_OR) ||
-			(status == 0 && c->ctype == TOKEN_AND)) {
-			pid_t pc = start_command(c, 0);
-			waitpid(pc, &status, 0);
-			if (WIFEXITED(status)) {
-				status = WEXITSTATUS(status);
-			}
+		if (shouldrun) {
+			pid_t cpr = start_command(c, 0);
+			waitpid(cpr, &status, 0);
+			accum = accum_test(accum, prev_log, status);
 		}
-		else if ((status != 0 && c->ctype == TOKEN_AND) ||
-			(status == 0 && c->ctype == TOKEN_OR)) {
-			_exit(status);
-			break;
-		}
-		*/
-		pid_t pc = start_command(c, 0);
-		waitpid(pc, &status, 0);	
-		if (WIFEXITED(status)) {
-			status = WEXITSTATUS(status);
-			if ((status != 0 && c->ctype == TOKEN_AND) || 
-				(status == 0 && c->ctype == TOKEN_OR)) {
-				//status = WEXITSTATUS(status);
-				_exit(status);
-				//break;
-			}
-			else {
-				c = c->up;
-				continue;
-			}	
-		}
+		prev_log = c->ctype;
+		shouldrun = should_run_proc(accum, prev_log);	
 		c = c->up;
 	}
+}
+
+int accum_test(int acc, int ctype, int status) {
+	if (ctype == -2)
+		return (WEXITSTATUS(status) == 0);
+	else if (ctype == TOKEN_AND)
+		return (acc && (WEXITSTATUS(status) == 0));
+	else if (ctype == TOKEN_OR)
+		return (acc || (WEXITSTATUS(status) == 0));
+	else
+		return -1;
+}
+
+int should_run_proc(int acc, int ctype) {
+	// if prev process worked, run stuff after AND
+	if ((ctype == TOKEN_AND) && (acc != 0))
+		return 1;
+	// if prev process didn't work, don't run stuff after AND
+	else if ((ctype == TOKEN_AND) && (acc == 0))
+		return 0;
+	// if prev process worked, don't run stuff after OR
+	else if ((ctype == TOKEN_OR) && (acc != 0))
+		return 0;
+	// if prev process didn't work, run stuff after OR
+	else if ((ctype == TOKEN_OR) && (acc == 0))
+		return 1;
+	else
+		return -1;
 }
 
 
@@ -232,25 +215,24 @@ void eval_line(const char* s) {
 	command* top = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
-		// normal token
-		//curr->type = type;
-		//if (type == TOKEN_NORMAL) {
-		//	command_append_arg(curr, token);
-		//}
+		// conditional
 		if (type == TOKEN_AND || type == TOKEN_OR) {
 			curr->up = command_alloc();
 			curr->ctype = type;
 			curr = curr->up;
 		}
+
+		// sequence / background
 		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
 			top->next = command_alloc();
 			if (type == TOKEN_BACKGROUND) {			
 				top->type = type;
 			}
-			//command_add(curr, type);
 			curr = top->next;
 			top = curr;
 		}
+
+		// normal
 		else {
 			command_append_arg(curr, token);
 		}

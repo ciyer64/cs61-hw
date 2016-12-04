@@ -16,7 +16,7 @@ struct command {
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
 	int type;	   // command type (i.e. background or not)
-	int ctype;	   // condition type (and / or)
+	int ctype;	   // condition type (&&, ||)
 	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
 	command* prev; // prev command in list
@@ -97,10 +97,18 @@ pid_t start_command(command* c, pid_t pgid) {
 	if (c->infd != 0)
 		close(pipefd[1]);
 
-	//pid_t pidc = fork();
+	if (c->type == TOKEN_PIPE){
+		int ret = pipe(pipefd);
+		if(ret == -1){
+			_exit(1);
+		}
+		c->outfd = pipefd[1];
+		c->infd = pipefd[0];
+	}
+
 	c->pid = fork();
 	switch (c->pid) {
-		// child process
+		// child process: execute
 		case 0:
 			execvp(c->argv[0],c->argv);
 			_exit(1);
@@ -109,24 +117,11 @@ pid_t start_command(command* c, pid_t pgid) {
 		case -1:
 			_exit(1);
 			break;
+		// parent process: do nothing, save child pid
 		default:
 			break;
 	}
 	return c->pid;
-	/*
-	// child process or fork error
-	if (pidc <= 0) {
-		// child process
-		if (pidc == 0)
-			execvp(c->argv[0],c->argv);
-		_exit(1);
-		return c->pid;
-	}
-	// parent process: update pid
-	c->pid = pidc;
-    //fprintf(stderr, "start_command not done yet\n");
-    return c->pid;
-	*/
 }
 
 
@@ -261,6 +256,10 @@ void eval_line(const char* s) {
 			}
 			curr = top->next;
 			top = curr;
+		}
+
+		else if (type == TOKEN_PIPE) {
+			curr->type = type;
 		}
 
 		// normal: add arguments

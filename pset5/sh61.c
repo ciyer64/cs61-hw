@@ -42,6 +42,8 @@ static command* command_alloc(void) {
     c->argv = NULL;
     c->pid = -1;
 	c->tag = 0;
+	c->infd = 0;
+	c->outfd = 1;
     return c;
 }
 
@@ -105,18 +107,31 @@ pid_t start_command(command* c, pid_t pgid) {
 		c->outfd = pipefd[1];
 		c->infd = pipefd[0];
 	}
-
+	
 	c->pid = fork();
 	switch (c->pid) {
 		// child process: execute
 		case 0:
+			// for writing into pipe:
+			if(c->outfd != 1){
+				close(pipefd[0]);
+				dup2(c->outfd, STDOUT_FILENO);
+				close(c->outfd);
+			}
+			// for reading into pipe:
+			if(c->infd != 0){
+				dup2(c->infd, STDOUT_FILENO);
+				close(c->infd);
+			}
 			execvp(c->argv[0],c->argv);
 			_exit(1);
 			break;
+
 		// error case
 		case -1:
 			_exit(1);
 			break;
+
 		// parent process: do nothing, save child pid
 		default:
 			break;
@@ -257,10 +272,12 @@ void eval_line(const char* s) {
 			curr = top->next;
 			top = curr;
 		}
-
+		/*
 		else if (type == TOKEN_PIPE) {
 			curr->type = type;
 		}
+		*/
+		
 
 		// normal: add arguments
 		else {

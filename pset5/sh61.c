@@ -22,7 +22,8 @@ struct command {
 	command* prev; // prev command in list
 	command* up;   // yay conditionals
 	command* down; // more conditionals yay
-	int cont;	   // indicator to wait or continue
+	int infd;	   // file descriptor for infile
+	int outfd;	   // file descriptor for outfile
 };
 
 void run_vert(command* c);
@@ -92,8 +93,25 @@ static void command_append_arg(command* c, char* word) {
 pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
-	pid_t pidc = fork();
+	int pipefd[2];
+	if (c->infd != 0)
+		close(pipefd[1]);
 
+	//pid_t pidc = fork();
+	c->pid = fork();
+	switch (c->pid) {
+		case 0:
+			execvp(c->argv[0],c->argv);
+			_exit(1);
+			break;
+		case 1:
+			_exit(1);
+			break;
+		default:
+			break;
+	}
+	return c->pid;
+	/*
 	// child process or fork error
 	if (pidc <= 0) {
 		// child process
@@ -106,6 +124,7 @@ pid_t start_command(command* c, pid_t pgid) {
 	c->pid = pidc;
     //fprintf(stderr, "start_command not done yet\n");
     return c->pid;
+	*/
 }
 
 
@@ -130,12 +149,16 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	while (c) {
+		// if background process
 		if (c->type == TOKEN_BACKGROUND) {
 			pid_t f = fork();
+			// run in child process
 			if (f == 0) {
 				run_vert(c);
 				_exit(1);
 			}
+			// move to next column of commands
+			// in parent process
 			else if (f > 0) {
 				c = c->next;
 				continue;
@@ -144,7 +167,10 @@ void run_list(command* c) {
 				_exit(1);
 			}
 		}
+		// if not background
 		else {
+			// run a column of commands (i.e. conditionals),
+			// then move to next column
 			run_vert(c);
 			c = c->next;
 		}
@@ -179,6 +205,7 @@ int accum_test(int acc, int ctype, int status) {
 	// command joined by an OR
 	else if (ctype == TOKEN_OR)
 		return (acc || (WEXITSTATUS(status) == 0));
+	// error case
 	else
 		return -1;
 }
@@ -211,21 +238,20 @@ void eval_line(const char* s) {
 
 	// build the command
 	// initialize "head"
-    //command* c = command_alloc();
 	head = command_alloc();
 	// cursor used for traversing & building
 	command* curr = head;
 	command* top = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
-		// conditional
+		// conditional: expand vertically
 		if (type == TOKEN_AND || type == TOKEN_OR) {
 			curr->up = command_alloc();
 			curr->ctype = type;
 			curr = curr->up;
 		}
 
-		// sequence / background
+		// sequence / background: expand horizontally
 		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
 			top->next = command_alloc();
 			if (type == TOKEN_BACKGROUND) {			
@@ -235,7 +261,7 @@ void eval_line(const char* s) {
 			top = curr;
 		}
 
-		// normal
+		// normal: add arguments
 		else {
 			command_append_arg(curr, token);
 		}

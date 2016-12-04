@@ -100,11 +100,13 @@ pid_t start_command(command* c, pid_t pgid) {
 	//pid_t pidc = fork();
 	c->pid = fork();
 	switch (c->pid) {
+		// child process
 		case 0:
 			execvp(c->argv[0],c->argv);
 			_exit(1);
 			break;
-		case 1:
+		// error case
+		case -1:
 			_exit(1);
 			break;
 		default:

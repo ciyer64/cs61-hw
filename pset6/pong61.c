@@ -245,12 +245,13 @@ http_connection* head;
 void add_to_list(http_connection* conn) {
     if (head == NULL)
 	head = conn;
-    else
+    else {
 	http_connection* tmp = head;
 	while (tmp->next) {
 	    tmp = tmp->next;
 	}
 	tmp->next=conn;
+    }
 }
 
 // pong_thread(threadarg)
@@ -285,7 +286,7 @@ void* pong_thread(void* threadarg) {
             tmp = tmp->next;
         }
     }
-    http_connection* conn = http_connect(pong_addr);
+    //http_connection* conn = http_connect(pong_addr);
     http_send_request(conn, url);
     http_receive_response_headers(conn);
 	

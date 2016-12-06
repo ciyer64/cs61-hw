@@ -256,15 +256,8 @@ void eval_line(const char* s) {
 	command* bottom = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
-		// conditional: expand vertically
-		if (type == TOKEN_AND || type == TOKEN_OR) {
-			curr->up = command_alloc();
-			curr->ctype = type;
-			curr = curr->up;
-		}
-
 		// sequence / background: expand horizontally
-		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
+		if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
 			bottom->next = command_alloc();
 			if (type == TOKEN_BACKGROUND) {			
 				bottom->type = type;
@@ -272,7 +265,15 @@ void eval_line(const char* s) {
 			curr = bottom->next;
 			bottom = curr;
 		}
+
+		// conditional: expand vertically
+		else if (type == TOKEN_AND || type == TOKEN_OR) {
+			curr->up = command_alloc();
+			curr->ctype = type;
+			curr = curr->up;
+		}
 		
+		// pipe: expand vertically
 		else if (type == TOKEN_PIPE) {
 			curr->up = command_alloc();
 			curr->type = type;

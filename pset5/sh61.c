@@ -24,6 +24,7 @@ struct command {
 	command* down; // more conditionals yay
 	int infd;	   // file descriptor for infile
 	int outfd;	   // file descriptor for outfile
+	int ptype;
 };
 
 void run_vert(command* c);
@@ -96,45 +97,56 @@ pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
 	int pipefd[2];
-	if (c->infd != 0)
-		close(pipefd[1]);
+	int shouldrun=1;
+	while(shouldrun==1){
 
-	if (c->type == TOKEN_PIPE){
-		int ret = pipe(pipefd);
-		if(ret == -1){
-			_exit(1);
+		if (c->infd != 0) {
+			close(pipefd[1]);
 		}
-		c->outfd = pipefd[1];
-		c->infd = pipefd[0];
-	}
+
+		if (c->ptype == TOKEN_PIPE){
+			int ret = pipe(pipefd);
+			if(ret == -1){
+				_exit(1);
+			}
+			c->outfd = pipefd[1];
+			c->up->infd = pipefd[0];
+		}
 	
-	c->pid = fork();
-	switch (c->pid) {
-		// child process: execute
-		case 0:
-			// for writing into pipe:
-			if(c->outfd != 1){
-				close(pipefd[0]);
-				dup2(c->outfd, STDOUT_FILENO);
-				close(c->outfd);
-			}
-			// for reading into pipe:
-			if(c->infd != 0){
-				dup2(c->infd, STDOUT_FILENO);
-				close(c->infd);
-			}
-			execvp(c->argv[0],c->argv);
-			_exit(1);
-			break;
+		c->pid = fork();
+		switch (c->pid) {
+			// child process: execute
+			case 0:
+				// for writing into pipe:
+				if(c->outfd != 1){
+					close(pipefd[0]);
+					dup2(c->outfd, STDOUT_FILENO);
+					close(c->outfd);
+				}
+				// for reading into pipe:
+				if(c->infd != 0){
+					dup2(c->infd, STDOUT_FILENO);
+					close(c->infd);
+				}
+				execvp(c->argv[0],c->argv);
+				_exit(1);
+				break;
 
-		// error case
-		case -1:
-			_exit(1);
-			break;
+			// error case
+			case -1:
+				_exit(1);
+				break;
 
-		// parent process: do nothing, save child pid
-		default:
-			break;
+			// parent process: do nothing, save child pid
+			default:
+				break;
+		}
+		if(c->up == NULL || c->up->ptype != TOKEN_PIPE) {
+			shouldrun=0;
+		}
+		else{
+			c = c->up;
+		}
 	}
 	return c->pid;
 }
@@ -195,9 +207,17 @@ void run_vert(command* c) {
 	int shouldrun = 1;
 	int accum = 1;
 	int prev_log = -2;
+	//command* pipe_fin;
+
 	while (c) {
+
+		//pipe_fin = c;
+
 		if (shouldrun) {
 			pid_t cpr = start_command(c, 0);
+			while(c->ptype == TOKEN_PIPE && c->up){
+				c = c->up;
+			}
 			waitpid(cpr, &status, 0);
 			accum = accum_test(accum, prev_log, status);
 		}
@@ -276,10 +296,9 @@ void eval_line(const char* s) {
 		// pipe: expand vertically
 		else if (type == TOKEN_PIPE) {
 			curr->up = command_alloc();
-			curr->type = type;
+			curr->ptype = type;
 			curr = curr->up;
 		}
-		
 		
 
 		// normal: add arguments

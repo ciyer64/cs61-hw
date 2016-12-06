@@ -54,6 +54,9 @@ struct http_connection {
     size_t len;             // Length of response buffer
 };
 
+// initialize head of table
+http_connection* head;
+
 // `http_connection::state` constants
 #define HTTP_REQUEST 0      // Request not sent yet
 #define HTTP_INITIAL 1      // Before first line of response
@@ -251,6 +254,7 @@ void* pong_thread(void* threadarg) {
     http_connection* conn = http_connect(pong_addr);
     http_send_request(conn, url);
     http_receive_response_headers(conn);
+	
     int pause = 10000;
     while (conn->state == HTTP_BROKEN) {
 		http_close(conn);
@@ -266,6 +270,8 @@ void* pong_thread(void* threadarg) {
                 "server returned status %d (expected 200)\n",
                 elapsed(), pa.x, pa.y, conn->status_code);
 	*/
+
+    pthread_cond_signal(&condvar);
     http_receive_response_body(conn);
     double result = strtod(conn->buf, NULL);
     if (result < 0) {
@@ -277,7 +283,7 @@ void* pong_thread(void* threadarg) {
     http_close(conn);
 
     // signal the main thread to continue
-    pthread_cond_signal(&condvar);
+    //pthread_cond_signal(&condvar);
     // and exit!
     pthread_exit(NULL);
 }

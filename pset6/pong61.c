@@ -251,28 +251,21 @@ void* pong_thread(void* threadarg) {
     http_connection* conn = http_connect(pong_addr);
     http_send_request(conn, url);
     http_receive_response_headers(conn);
-<<<<<<< HEAD
-    /*if (conn->status_code != 200)
-        fprintf(stderr, "%.3f sec: warning: %d,%d: "
-                "server returned status %d (expected 200)\n",
-                elapsed(), pa.x, pa.y, conn->status_code);*/
     int pause = 10000;
     while (conn->state == HTTP_BROKEN) {
-	http_close(conn);
-	usleep(pause);
-	pause = 2*pause;
-	conn = http_connect(pong_addr);
-	http_send_request(conn, url);
-	http_receive_response_headers(conn);
+		http_close(conn);
+		usleep(pause);
+		pause = 2*pause;
+		conn = http_connect(pong_addr);
+		http_send_request(conn, url);
+		http_receive_response_headers(conn);
     }
-        
-=======
+    /*
     if (conn->status_code != 200)
         fprintf(stderr, "%.3f sec: warning: %d,%d: "
                 "server returned status %d (expected 200)\n",
                 elapsed(), pa.x, pa.y, conn->status_code);
-
->>>>>>> b55a3abfdbb67e715126daad8f7dcadf519b694f
+	*/
     http_receive_response_body(conn);
     double result = strtod(conn->buf, NULL);
     if (result < 0) {

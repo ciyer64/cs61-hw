@@ -253,7 +253,7 @@ void eval_line(const char* s) {
 	head = command_alloc();
 	// cursor used for traversing & building
 	command* curr = head;
-	command* top = head;
+	command* bottom = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
 		// conditional: expand vertically
@@ -265,18 +265,20 @@ void eval_line(const char* s) {
 
 		// sequence / background: expand horizontally
 		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-			top->next = command_alloc();
+			bottom->next = command_alloc();
 			if (type == TOKEN_BACKGROUND) {			
-				top->type = type;
+				bottom->type = type;
 			}
-			curr = top->next;
-			top = curr;
+			curr = bottom->next;
+			bottom = curr;
 		}
-		/*
+		
 		else if (type == TOKEN_PIPE) {
+			curr->up = command_alloc();
 			curr->type = type;
+			curr = curr->up;
 		}
-		*/
+		
 		
 
 		// normal: add arguments

@@ -10,7 +10,11 @@
 #endif
 
 #ifndef PONG_USER
+<<<<<<< HEAD
 # define PONG_USER "hola"
+=======
+# define PONG_USER "test"
+>>>>>>> b55a3abfdbb67e715126daad8f7dcadf519b694f
 #endif
 
 #endif

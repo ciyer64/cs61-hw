@@ -275,17 +275,22 @@ void* pong_thread(void* threadarg) {
         head = conn;
     }
     else {
+
 		http_connection* tmp = head;
         while(tmp->next){
             if(tmp->next->state == HTTP_BROKEN) {
 		http_close(tmp->next);
 		tmp->next = tmp->next->next;
 	    }
-	    if(tmp->next->state == HTTP_DONE) {
+	    else if(tmp->next->state == HTTP_DONE) {
                 conn = tmp;
 		tmp->next = tmp->next->next;
                 break;
             }
+	    else if(tmp->next == NULL) {
+		conn = http_connect(pong_addr);
+		break;
+	    }
             tmp = tmp->next;
         }
     }

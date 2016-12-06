@@ -52,6 +52,8 @@ struct http_connection {
 
     char buf[BUFSIZ];       // Response buffer
     size_t len;             // Length of response buffer
+
+    http_connection* next;  // Points to next open connection
 };
 
 // `http_connection::state` constants
@@ -235,6 +237,19 @@ typedef struct pong_args {
 pthread_mutex_t mutex;
 pthread_cond_t condvar;
 
+http_connection* head;
+
+void add_to_list(http_connection* conn) {
+    if (head == NULL)
+	head = conn;
+    else
+	http_connection* tmp = head;
+	while (tmp->next) {
+	    tmp = tmp->next;
+	}
+	tmp->next=conn;
+}
+
 // pong_thread(threadarg)
 //    Connect to the server at the position indicated by `threadarg`
 //    (which is a pointer to a `pong_args` structure).
@@ -247,7 +262,26 @@ void* pong_thread(void* threadarg) {
     char url[256];
     snprintf(url, sizeof(url), "move?x=%d&y=%d&style=on",
              pa.x, pa.y);
-
+    http_connection* conn;
+    http_connection* tmp = head;
+    if (head == NULL) {
+        conn = http_connect(pong_addr);
+        //head = conn;
+    }
+    else {
+        while(tmp->next){
+            if(tmp->next->state == HTTP_BROKEN) {
+		http_close(tmp->next);
+		tmp->next = tmp->next->next;
+	    }
+	    if(tmp->next->state == HTTP_DONE) {
+                conn = tmp;
+		tmp->next = tmp->next->next;
+                break;
+            }
+            tmp = tmp->next;
+        }
+    }
     http_connection* conn = http_connect(pong_addr);
     http_send_request(conn, url);
     http_receive_response_headers(conn);
@@ -264,6 +298,10 @@ void* pong_thread(void* threadarg) {
 
     // if (conn->status_code != 200)
     //	fprintf(stderr, "%.3f sec: warning: %d, %d: " "server returned status %d (expected 200)\n", elapsed(), pa.x, pa.y, conn->status_code);
+    
+    
+    // Go ahead and signal main thread to continue, regardless
+    // of state of receiving body
     pthread_cond_signal(&condvar);
     http_receive_response_body(conn);
     double result = strtod(conn->buf, NULL);
@@ -272,8 +310,10 @@ void* pong_thread(void* threadarg) {
                 elapsed(), http_truncate_response(conn));
         exit(1);
     }
-
-    http_close(conn);
+    if (conn->state == HTTP_DONE)
+	add_to_list(conn);
+    else
+	http_close(conn);
 
     // signal the main thread to continue
     pthread_cond_signal(&condvar);

@@ -313,7 +313,7 @@ void* pong_thread(void* threadarg) {
     pthread_cond_signal(&condvar);
     http_receive_response_body(conn);
     double result = strtod(conn->buf, NULL);
-    // `Pause` thread for the amound of time requested by server
+    // `Pause` thread for the amount of time requested by server
     if (result > 0) {
 	pthread_mutex_lock(&mutex);
 	usleep(result*1000);

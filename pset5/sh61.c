@@ -16,7 +16,7 @@ struct command {
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
 	int type;	   // command type (i.e. background or not)
-	int ctype;	   // condition type (&&, ||)
+	int sym;	   // vert operator (&&, ||, |)
 	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
 	command* prev; // prev command in list
@@ -24,7 +24,8 @@ struct command {
 	command* down; // more conditionals yay
 	int infd;	   // file descriptor for infile
 	int outfd;	   // file descriptor for outfile
-	int ptype;
+
+	int exstat;	   // exit status as per waitpid
 };
 
 void run_vert(command* c);
@@ -104,7 +105,7 @@ pid_t start_command(command* c, pid_t pgid) {
 			close(pipefd[1]);
 		}
 
-		if (c->ptype == TOKEN_PIPE){
+		if (c->sym == TOKEN_PIPE){
 			int ret = pipe(pipefd);
 			if(ret == -1){
 				_exit(1);
@@ -141,7 +142,7 @@ pid_t start_command(command* c, pid_t pgid) {
 			default:
 				break;
 		}
-		if(c->up == NULL || c->up->ptype != TOKEN_PIPE) {
+		if(c->up == NULL || c->up->sym != TOKEN_PIPE) {
 			shouldrun=0;
 		}
 		else{
@@ -203,35 +204,40 @@ void run_list(command* c) {
 }
 
 void run_vert(command* c) {
-	int status = 0;
+	//int status = 0;
 	int shouldrun = 1;
 	int accum = 1;
-	int prev_log = -2;
-	//command* pipe_fin;
+	//int prev_log = -2;
+	int prev_sym = -2;
+	command* pfin;
 
 	while (c) {
 
-		//pipe_fin = c;
+		pfin = c;
 
 		if (shouldrun) {
 			pid_t cpr = start_command(c, 0);
-			while(c->ptype == TOKEN_PIPE && c->up){
-				c = c->up;
+			while(pfin->sym == TOKEN_PIPE && pfin->up){
+				pfin = pfin->up;
 			}
-			waitpid(cpr, &status, 0);
-			accum = accum_test(accum, prev_log, status);
+			waitpid(cpr, &pfin->exstat, 0);
+			accum = accum_test(accum, prev_sym, pfin->exstat);
 		}
-		prev_log = c->ctype;
-		shouldrun = should_run_proc(accum, prev_log);
+		//prev_log = c->ctype;
+		prev_sym = pfin->sym;
+		shouldrun = should_run_proc(accum, prev_sym);
+		//c = c->up;
 		int sr2=1;
 		while(sr2){
 			c = c->up;
 			if(!c)
 				return;
-			if(c->down->ptype != TOKEN_PIPE) {
+			if(c->down == NULL || c->down->sym != TOKEN_PIPE) {
 				sr2 = 0;
 			}
 		}
+		
+		
 	}
 }
 
@@ -297,14 +303,14 @@ void eval_line(const char* s) {
 		// conditional: expand vertically
 		else if (type == TOKEN_AND || type == TOKEN_OR) {
 			curr->up = command_alloc();
-			curr->ctype = type;
+			curr->sym = type;
 			curr = curr->up;
 		}
 		
 		// pipe: expand vertically
 		else if (type == TOKEN_PIPE) {
 			curr->up = command_alloc();
-			curr->ptype = type;
+			curr->sym = type;
 			curr = curr->up;
 		}
 		

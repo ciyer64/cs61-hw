@@ -17,7 +17,7 @@ static const char* pong_port = PONG_PORT;
 static const char* pong_user = PONG_USER;
 static struct addrinfo* pong_addr;
 
-
+int count = 0;
 // TIME HELPERS
 double elapsed_base = 0;
 
@@ -49,8 +49,8 @@ struct http_connection {
     size_t content_length;  // Content-Length value
     int has_content_length; // 1 iff Content-Length was provided
     int eof;                // 1 iff connection EOF has been reached
-
-    char buf[BUFSIZ];       // Response buffer
+    char* buf;
+    //char buf[BUFSIZ];       // Response buffer
     size_t len;             // Length of response buffer
 
     http_connection* next;  // Points to next open connection
@@ -103,6 +103,7 @@ http_connection* http_connect(const struct addrinfo* ai) {
     conn->fd = fd;
     conn->state = HTTP_REQUEST;
     conn->eof = 0;
+    conn->buf = malloc(BUFSIZ);
     return conn;
 }
 
@@ -164,17 +165,28 @@ void http_send_request(http_connection* conn, const char* uri) {
 //    prematurely, `conn->status_code` is -1.
 void http_receive_response_headers(http_connection* conn) {
     assert(conn->state != HTTP_REQUEST);
-    if (conn->state < 0)
-        return;
-
+    if (conn->state < 0) {
+        //printf("print location 10: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+	return;
+    }
+    //printf("print location 11: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+ 
     // read & parse data until told `http_process_response_headers`
     // tells us to stop
     while (http_process_response_headers(conn)) {
-        ssize_t nr = read(conn->fd, &conn->buf[conn->len], BUFSIZ);
-        if (nr == 0)
+	printf("print location 1: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
+        if (conn->len > BUFSIZ) {
+	    conn->buf = realloc(conn->buf, conn->len);
+	}
+	ssize_t nr = read(conn->fd, &conn->buf[conn->len], BUFSIZ);
+       	printf("print location 2: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
+        if (nr == 0) {
             conn->eof = 1;
-        else if (nr == -1 && errno != EINTR && errno != EAGAIN) {
-            perror("read");
+	    printf("print location 3: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+	}
+	else if (nr == -1 && errno != EINTR && errno != EAGAIN) {
+	    perror("read");
+	    printf("print location 4: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
             exit(1);
         } else if (nr != -1)
             conn->len += nr;
@@ -183,7 +195,8 @@ void http_receive_response_headers(http_connection* conn) {
     // Status codes >= 500 mean we are overloading the server
     // and should exit.
     if (conn->status_code >= 500) {
-        fprintf(stderr, "%.3f sec: exiting because of "
+        //printf("print location 15: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+	fprintf(stderr, "%.3f sec: exiting because of "
                 "server status %d (%s)\n", elapsed(),
                 conn->status_code, http_truncate_response(conn));
         exit(1);
@@ -281,8 +294,12 @@ void* pong_thread(void* threadarg) {
     pthread_mutex_unlock(&mutex);
     //http_connection* conn = http_connect(pong_addr);
     http_send_request(conn, url);
+    //printf("print location 0: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
     http_receive_response_headers(conn);
-    
+    count += conn->content_length;
+    //printf("Print location 1: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+
+
     // Attempt to reconnect to the server if the connection is dropped
     int pause = 10000;
     while (conn->state == HTTP_BROKEN) {
@@ -310,8 +327,14 @@ void* pong_thread(void* threadarg) {
     
     // Go ahead and signal main thread to continue, regardless
     // of state of receiving body
+    //printf("Print location 2: content_length = %zu, len = %zu\n", conn->content_length, conn->len);
+
+
     pthread_cond_signal(&condvar);
     http_receive_response_body(conn);
+
+    //printf("Print location 3: content_length = %zu, len = %zu\n", conn->content_length, conn->len);
+
     double result = strtod(conn->buf, NULL);
     // `Pause` thread for the amound of time requested by server
     if (result > 0) {

@@ -238,9 +238,8 @@ typedef struct pong_args {
 } pong_args;
 
 pthread_mutex_t mutex;
+pthread_mutex_t mutex2;
 pthread_cond_t condvar;
-
-http_connection* head;
 
 void add_to_list(http_connection* conn) {
     if (head == NULL)
@@ -254,7 +253,6 @@ void add_to_list(http_connection* conn) {
     }
 }
 
-http_connection* find_conn(http_connection* 
 
 // pong_thread(threadarg)
 //    Connect to the server at the position indicated by `threadarg`
@@ -270,43 +268,38 @@ void* pong_thread(void* threadarg) {
              pa.x, pa.y);
     http_connection* conn;
     //http_connection* tmp = head;
-    if (head == NULL) {
-        conn = http_connect(pong_addr);
-        head = conn;
+    
+    // Traverse the linked list to check for a connection
+    pthread_mutex_lock(&mutex); 
+    if (head){
+        conn = head;
+        head = head->next;
     }
     else {
-
-		http_connection* tmp = head;
-        while(tmp->next){
-            if(tmp->next->state == HTTP_BROKEN) {
-		http_close(tmp->next);
-		tmp->next = tmp->next->next;
-	    }
-	    else if(tmp->next->state == HTTP_DONE) {
-                conn = tmp;
-		tmp->next = tmp->next->next;
-                break;
-            }
-	    else if(tmp->next == NULL) {
-		conn = http_connect(pong_addr);
-		break;
-	    }
-            tmp = tmp->next;
-        }
+        conn = http_connect(pong_addr);
     }
-
+    pthread_mutex_unlock(&mutex);
     //http_connection* conn = http_connect(pong_addr);
     http_send_request(conn, url);
     http_receive_response_headers(conn);
-	
+    
+    // Attempt to reconnect to the server if the connection is dropped
     int pause = 10000;
     while (conn->state == HTTP_BROKEN) {
-		http_close(conn);
-		usleep(pause);
-		pause = 2*pause;
-		conn = http_connect(pong_addr);
-		http_send_request(conn, url);
-		http_receive_response_headers(conn);
+	http_close(conn);
+	usleep(pause);
+	pause = 2*pause;
+	pthread_mutex_lock(&mutex);
+	if (head){
+       	    conn = head;
+       	    head = head->next;
+  	}
+   	else {
+            conn = http_connect(pong_addr);
+    	}
+    	pthread_mutex_unlock(&mutex);
+	http_send_request(conn, url);
+	http_receive_response_headers(conn);
     }
     /*
     if (conn->status_code != 200)
@@ -320,16 +313,26 @@ void* pong_thread(void* threadarg) {
     pthread_cond_signal(&condvar);
     http_receive_response_body(conn);
     double result = strtod(conn->buf, NULL);
-    if (result < 0) {
+    // `Pause` thread for the amound of time requested by server
+    if (result > 0) {
+	pthread_mutex_lock(&mutex);
+	usleep(result*1000);
+	pthread_mutex_unlock(&mutex);
+    }
+    else if (result < 0) {
         fprintf(stderr, "%.3f sec: server returned error: %s\n",
                 elapsed(), http_truncate_response(conn));
         exit(1);
     }
-    if (conn->state == HTTP_DONE)
-	add_to_list(conn);
+    if (conn->state == HTTP_DONE) {
+	pthread_mutex_lock(&mutex);
+	conn->next = head;
+	head = conn;
+	pthread_mutex_unlock(&mutex);
+    }
     else
 	http_close(conn);
-
+    
     // signal the main thread to continue
     //pthread_cond_signal(&condvar);
     // and exit!

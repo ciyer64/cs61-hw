@@ -222,8 +222,16 @@ void run_vert(command* c) {
 			accum = accum_test(accum, prev_log, status);
 		}
 		prev_log = c->ctype;
-		shouldrun = should_run_proc(accum, prev_log);	
-		c = c->up;
+		shouldrun = should_run_proc(accum, prev_log);
+		int sr2=1;
+		while(sr2){
+			c = c->up;
+			if(!c)
+				return;
+			if(c->down->ptype != TOKEN_PIPE) {
+				sr2 = 0;
+			}
+		}
 	}
 }
 

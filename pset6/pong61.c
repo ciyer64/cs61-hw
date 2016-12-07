@@ -52,6 +52,7 @@ struct http_connection {
     char* buf;
     //char buf[BUFSIZ];       // Response buffer
     size_t len;             // Length of response buffer
+    size_t capac;
 
     http_connection* next;  // Points to next open connection
 };
@@ -104,6 +105,7 @@ http_connection* http_connect(const struct addrinfo* ai) {
     conn->state = HTTP_REQUEST;
     conn->eof = 0;
     conn->buf = malloc(BUFSIZ);
+    conn->capac = BUFSIZ;
     return conn;
 }
 
@@ -156,6 +158,7 @@ void http_send_request(http_connection* conn, const char* uri) {
     conn->content_length = 0;
     conn->has_content_length = 0;
     conn->len = 0;
+    conn->capac = BUFSIZ;
 }
 
 
@@ -175,10 +178,11 @@ void http_receive_response_headers(http_connection* conn) {
     // tells us to stop
     while (http_process_response_headers(conn)) {
 	//printf("print location 1: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
-        if (conn->len > BUFSIZ) {
-	    conn->buf = realloc(conn->buf, conn->len);
+        if (conn->len >= conn->capac) {
+	    conn->capac *= 2;
+	    conn->buf = realloc(conn->buf, conn->capac);
 	}
-	ssize_t nr = read(conn->fd, &conn->buf[conn->len], BUFSIZ);
+	ssize_t nr = read(conn->fd, &conn->buf[conn->len], conn->capac - conn->len);
        	//printf("print location 2: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
         if (nr == 0) {
             conn->eof = 1;

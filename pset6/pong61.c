@@ -174,19 +174,19 @@ void http_receive_response_headers(http_connection* conn) {
     // read & parse data until told `http_process_response_headers`
     // tells us to stop
     while (http_process_response_headers(conn)) {
-	printf("print location 1: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
+	//printf("print location 1: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
         if (conn->len > BUFSIZ) {
 	    conn->buf = realloc(conn->buf, conn->len);
 	}
 	ssize_t nr = read(conn->fd, &conn->buf[conn->len], BUFSIZ);
-       	printf("print location 2: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
+       	//printf("print location 2: content_length = %zu, len = %zu, BUFSIZ = %d\n", conn->content_length, conn->len, BUFSIZ);
         if (nr == 0) {
             conn->eof = 1;
-	    printf("print location 3: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+	    //printf("print location 3: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
 	}
 	else if (nr == -1 && errno != EINTR && errno != EAGAIN) {
 	    perror("read");
-	    printf("print location 4: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
+	    //printf("print location 4: content_length = %zu, len = %zu, total = %d\n", conn->content_length, conn->len, count);
             exit(1);
         } else if (nr != -1)
             conn->len += nr;

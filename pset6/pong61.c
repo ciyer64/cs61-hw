@@ -340,7 +340,7 @@ void* pong_thread(void* threadarg) {
     //printf("Print location 3: content_length = %zu, len = %zu\n", conn->content_length, conn->len);
 
     double result = strtod(conn->buf, NULL);
-    // `Pause` thread for the amound of time requested by server
+    // `Pause` thread for the amount of time requested by server
     if (result > 0) {
 	pthread_mutex_lock(&mutex);
 	usleep(result*1000);

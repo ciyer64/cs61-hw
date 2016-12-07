@@ -16,16 +16,20 @@ struct command {
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
 	int type;	   // command type (i.e. background or not)
-	int ctype;	   // condition type (and / or)
+	int ctype;	   // condition type (&&, ||)
 	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
 	command* prev; // prev command in list
 	command* up;   // yay conditionals
 	command* down; // more conditionals yay
-	int cont;	   // indicator to wait or continue
+	int infd;	   // file descriptor for infile
+	int outfd;	   // file descriptor for outfile
+	int ptype;
 };
 
 void run_vert(command* c);
+int accum_test(int acc, int ctype, int status);
+int should_run_proc(int acc, int ctype);
 
 command* head;
 //command* tail;
@@ -39,26 +43,11 @@ static command* command_alloc(void) {
     c->argv = NULL;
     c->pid = -1;
 	c->tag = 0;
+	c->infd = 0;
+	c->outfd = 1;
     return c;
 }
 
-// command_add(c)
-//    Add next command to list.
-void command_add(command* c, int type) {
-	if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-		//command* cnext = command_alloc();
-		c->next = command_alloc();
-		c->next->tag = c->tag+1;
-		c->next->prev = c;
-	}
-	else if ((type == TOKEN_AND) || (type == TOKEN_OR)) {
-		//printf("we're going up!");
-		//command* ccond = command_alloc();
-		c->up = command_alloc();
-		c->up->type = c->type; // background affects whole conditional
-		c->up->down = c;
-	}
-}
 
 // command_free(c)
 //    Free command structure `c`, including all its words.
@@ -107,20 +96,59 @@ static void command_append_arg(command* c, char* word) {
 pid_t start_command(command* c, pid_t pgid) {
     (void) pgid;
     // Your code here!
-	pid_t pidc = fork();
+	int pipefd[2];
+	int shouldrun=1;
+	while(shouldrun==1){
 
-	// child process or fork error
-	if (pidc <= 0) {
-		// child process
-		if (pidc == 0)
-			execvp(c->argv[0],c->argv);
-		_exit(1);
-		return c->pid;
+		if (c->infd != 0) {
+			close(pipefd[1]);
+		}
+
+		if (c->ptype == TOKEN_PIPE){
+			int ret = pipe(pipefd);
+			if(ret == -1){
+				_exit(1);
+			}
+			c->outfd = pipefd[1];
+			c->up->infd = pipefd[0];
+		}
+	
+		c->pid = fork();
+		switch (c->pid) {
+			// child process: execute
+			case 0:
+				// for writing into pipe:
+				if(c->outfd != 1){
+					close(pipefd[0]);
+					dup2(c->outfd, STDOUT_FILENO);
+					close(c->outfd);
+				}
+				// for reading into pipe:
+				if(c->infd != 0){
+					dup2(c->infd, STDOUT_FILENO);
+					close(c->infd);
+				}
+				execvp(c->argv[0],c->argv);
+				_exit(1);
+				break;
+
+			// error case
+			case -1:
+				_exit(1);
+				break;
+
+			// parent process: do nothing, save child pid
+			default:
+				break;
+		}
+		if(c->up == NULL || c->up->ptype != TOKEN_PIPE) {
+			shouldrun=0;
+		}
+		else{
+			c = c->up;
+		}
 	}
-	// parent process: update pid
-	c->pid = pidc;
-    //fprintf(stderr, "start_command not done yet\n");
-    return c->pid;
+	return c->pid;
 }
 
 
@@ -145,12 +173,16 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	while (c) {
+		// if background process
 		if (c->type == TOKEN_BACKGROUND) {
 			pid_t f = fork();
+			// run in child process
 			if (f == 0) {
 				run_vert(c);
 				_exit(1);
 			}
+			// move to next column of commands
+			// in parent process
 			else if (f > 0) {
 				c = c->next;
 				continue;
@@ -159,18 +191,11 @@ void run_list(command* c) {
 				_exit(1);
 			}
 		}
+		// if not background
 		else {
-			//run_vert(c);
-			
-			if (c->up) {
-				run_vert(c);
-			}
-			else {
-				int status;
-				pid_t pidc = start_command(c, 0);
-				waitpid(pidc, &status, 0);
-			}
-			
+			// run a column of commands (i.e. conditionals),
+			// then move to next column
+			run_vert(c);
 			c = c->next;
 		}
 	}
@@ -178,40 +203,60 @@ void run_list(command* c) {
 }
 
 void run_vert(command* c) {
-	int status;
+	int status = 0;
+	int shouldrun = 1;
+	int accum = 1;
+	int prev_log = -2;
+	//command* pipe_fin;
+
 	while (c) {
-		/*
-		if ((status != 0 && c->ctype == TOKEN_OR) ||
-			(status == 0 && c->ctype == TOKEN_AND)) {
-			pid_t pc = start_command(c, 0);
-			waitpid(pc, &status, 0);
-			if (WIFEXITED(status)) {
-				status = WEXITSTATUS(status);
-			}
-		}
-		else if ((status != 0 && c->ctype == TOKEN_AND) ||
-			(status == 0 && c->ctype == TOKEN_OR)) {
-			_exit(status);
-			break;
-		}
-		*/
-		pid_t pc = start_command(c, 0);
-		waitpid(pc, &status, 0);	
-		if (WIFEXITED(status)) {
-			status = WEXITSTATUS(status);
-			if ((status != 0 && c->ctype == TOKEN_AND) || 
-				(status == 0 && c->ctype == TOKEN_OR)) {
-				//status = WEXITSTATUS(status);
-				_exit(status);
-				//break;
-			}
-			else {
+
+		//pipe_fin = c;
+
+		if (shouldrun) {
+			pid_t cpr = start_command(c, 0);
+			while(c->ptype == TOKEN_PIPE && c->up){
 				c = c->up;
-				continue;
-			}	
+			}
+			waitpid(cpr, &status, 0);
+			accum = accum_test(accum, prev_log, status);
 		}
+		prev_log = c->ctype;
+		shouldrun = should_run_proc(accum, prev_log);	
 		c = c->up;
 	}
+}
+
+int accum_test(int acc, int ctype, int status) {
+	// first command
+	if (ctype == -2)
+		return (WEXITSTATUS(status) == 0);
+	// command joined by an AND
+	else if (ctype == TOKEN_AND)
+		return (acc && (WEXITSTATUS(status) == 0));
+	// command joined by an OR
+	else if (ctype == TOKEN_OR)
+		return (acc || (WEXITSTATUS(status) == 0));
+	// error case
+	else
+		return -1;
+}
+
+int should_run_proc(int acc, int ctype) {
+	// if prev process worked, run stuff after AND
+	if ((ctype == TOKEN_AND) && (acc != 0))
+		return 1;
+	// if prev process didn't work, don't run stuff after AND
+	else if ((ctype == TOKEN_AND) && (acc == 0))
+		return 0;
+	// if prev process worked, don't run stuff after OR
+	else if ((ctype == TOKEN_OR) && (acc != 0))
+		return 0;
+	// if prev process didn't work, run stuff after OR
+	else if ((ctype == TOKEN_OR) && (acc == 0))
+		return 1;
+	else
+		return -1;
 }
 
 
@@ -225,32 +270,38 @@ void eval_line(const char* s) {
 
 	// build the command
 	// initialize "head"
-    //command* c = command_alloc();
 	head = command_alloc();
 	// cursor used for traversing & building
 	command* curr = head;
-	command* top = head;
+	command* bottom = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
-		// normal token
-		//curr->type = type;
-		//if (type == TOKEN_NORMAL) {
-		//	command_append_arg(curr, token);
-		//}
-		if (type == TOKEN_AND || type == TOKEN_OR) {
+		// sequence / background: expand horizontally
+		if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
+			bottom->next = command_alloc();
+			if (type == TOKEN_BACKGROUND) {			
+				bottom->type = type;
+			}
+			curr = bottom->next;
+			bottom = curr;
+		}
+
+		// conditional: expand vertically
+		else if (type == TOKEN_AND || type == TOKEN_OR) {
 			curr->up = command_alloc();
 			curr->ctype = type;
 			curr = curr->up;
 		}
-		else if (type == TOKEN_BACKGROUND || type == TOKEN_SEQUENCE) {
-			top->next = command_alloc();
-			if (type == TOKEN_BACKGROUND) {			
-				top->type = type;
-			}
-			//command_add(curr, type);
-			curr = top->next;
-			top = curr;
+		
+		// pipe: expand vertically
+		else if (type == TOKEN_PIPE) {
+			curr->up = command_alloc();
+			curr->ptype = type;
+			curr = curr->up;
 		}
+		
+
+		// normal: add arguments
 		else {
 			command_append_arg(curr, token);
 		}

@@ -25,7 +25,6 @@ struct command {
 	int infd;	   // file descriptor for infile
 	int outfd;	   // file descriptor for outfile
 	int exstat;	   // exit status of command (for waitpid)
-	int rdrc;	   // indicator for type of redirect (<, >, or 2>)
 };
 
 void run_vert(command* c);
@@ -212,6 +211,7 @@ void run_list(command* c) {
 void run_vert(command* c) {
 	int shouldrun = 1;
 	int accum = 1;
+
 	int prev_sym = -2;
 	//command* pfin;
 
@@ -321,15 +321,7 @@ void eval_line(const char* s) {
 			curr->sym = type;
 			curr = curr->up;
 		}
-
-		else if (type == TOKEN_REDIRECTION) {
-			if (strcmp("<", token) == 0)
-				curr->rdrc = 0;
-			else if (strcmp(">", token) == 0)
-				curr->rdrc = 1;
-			else if (strcmp("2>" token) == 0)
-				curr->rdrc = 2;
-		}
+		
 
 		// normal: add arguments
 		else {

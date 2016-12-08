@@ -16,16 +16,16 @@ struct command {
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
 	int type;	   // command type (i.e. background or not)
-	int sym;	   // vert operator (&&, ||, |)
+	int sym;	   // vert operator (&&, ||, or |)
 	int tag;	   // keeping track of order for debugging
 	command* next; // next command in list
 	command* prev; // prev command in list
-	command* up;   // yay conditionals
-	command* down; // more conditionals yay
+	command* up;   // next command in a "column" (conditional/pipe)
+	command* down; // previous command in a "column" (see above)
 	int infd;	   // file descriptor for infile
 	int outfd;	   // file descriptor for outfile
-
-	int exstat;	   // exit status as per waitpid
+	int exstat;	   // exit status of command (for waitpid)
+	int rdrc;	   // indicator for type of redirect (<, >, or 2>)
 };
 
 void run_vert(command* c);
@@ -133,7 +133,7 @@ pid_t start_command(command* c, pid_t pgid) {
 				_exit(1);
 				break;
 
-			// error case
+			// error: exit
 			case -1:
 				_exit(1);
 				break;
@@ -172,30 +172,36 @@ pid_t start_command(command* c, pid_t pgid) {
 //       - Call `set_foreground(0)` once the pipeline is complete.
 //       - Cancel the list when you detect interruption.
 
+// FUNCTION SUMMARY:
+// if the command is not backgrounded, we run the column then proceed
+// if it is backgrounded, we fork:
+// 		-> if it is the child, we run the column then exit
+//		-> if it is the parent, we proceed horizontally
+//		-> if it is error, just exit
+
 void run_list(command* c) {
 	while (c) {
-		// if background process
 		if (c->type == TOKEN_BACKGROUND) {
 			pid_t f = fork();
-			// run in child process
-			if (f == 0) {
-				run_vert(c);
-				_exit(1);
-			}
-			// move to next column of commands
-			// in parent process
-			else if (f > 0) {
-				c = c->next;
-				continue;
-			}
-			else if (f == -1) {
-				_exit(1);
+
+			switch(f) {
+
+				case 0:
+					run_vert(c);
+					_exit(1);
+					break;
+
+				case -1:
+					_exit(1);
+					break;
+				
+				default:
+					c = c->next;
+					break;
 			}
 		}
-		// if not background
+
 		else {
-			// run a column of commands (i.e. conditionals),
-			// then move to next column
 			run_vert(c);
 			c = c->next;
 		}
@@ -204,10 +210,8 @@ void run_list(command* c) {
 }
 
 void run_vert(command* c) {
-	//int status = 0;
 	int shouldrun = 1;
 	int accum = 1;
-	//int prev_log = -2;
 	int prev_sym = -2;
 	//command* pfin;
 
@@ -217,6 +221,8 @@ void run_vert(command* c) {
 
 		if (shouldrun) {
 			pid_t cpr = start_command(c, 0);
+			//while(pfin->sym == TOKEN_PIPE && pfin->up){
+				//pfin = pfin->up;
 			while(c->sym == TOKEN_PIPE && c->up){
 				c = c->up;
 			}
@@ -315,7 +321,15 @@ void eval_line(const char* s) {
 			curr->sym = type;
 			curr = curr->up;
 		}
-		
+
+		else if (type == TOKEN_REDIRECTION) {
+			if (strcmp("<", token) == 0)
+				curr->rdrc = 0;
+			else if (strcmp(">", token) == 0)
+				curr->rdrc = 1;
+			else if (strcmp("2>" token) == 0)
+				curr->rdrc = 2;
+		}
 
 		// normal: add arguments
 		else {
@@ -389,6 +403,9 @@ int main(int argc, char* argv[]) {
 
         // Handle zombie processes and/or interrupt requests
         // Your code here!
+		int zombstat;
+		while(waitpid(-1, &zombstat, WNOHANG) > 0);
+
     }
 
     return 0;

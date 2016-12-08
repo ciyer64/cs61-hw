@@ -126,7 +126,7 @@ pid_t start_command(command* c, pid_t pgid) {
 				}
 				// for reading into pipe:
 				if(c->infd != 0){
-					dup2(c->infd, STDOUT_FILENO);
+					dup2(c->infd, STDIN_FILENO);
 					close(c->infd);
 				}
 				execvp(c->argv[0],c->argv);
@@ -142,7 +142,7 @@ pid_t start_command(command* c, pid_t pgid) {
 			default:
 				break;
 		}
-		if(c->up == NULL || c->up->sym != TOKEN_PIPE) {
+		if(c->up == NULL || c->sym != TOKEN_PIPE) {
 			shouldrun=0;
 		}
 		else{
@@ -209,24 +209,25 @@ void run_vert(command* c) {
 	int accum = 1;
 	//int prev_log = -2;
 	int prev_sym = -2;
-	command* pfin;
+	//command* pfin;
 
 	while (c) {
 
-		pfin = c;
+		//pfin = c;
 
 		if (shouldrun) {
 			pid_t cpr = start_command(c, 0);
-			while(pfin->sym == TOKEN_PIPE && pfin->up){
-				pfin = pfin->up;
+			while(c->sym == TOKEN_PIPE && c->up){
+				c = c->up;
 			}
-			waitpid(cpr, &pfin->exstat, 0);
-			accum = accum_test(accum, prev_sym, pfin->exstat);
+			waitpid(cpr, &c->exstat, 0);
+			accum = accum_test(accum, prev_sym, c->exstat);
 		}
 		//prev_log = c->ctype;
-		prev_sym = pfin->sym;
+		prev_sym = c->sym;
 		shouldrun = should_run_proc(accum, prev_sym);
-		//c = c->up;
+		c = c->up;
+		/*
 		int sr2=1;
 		while(sr2){
 			c = c->up;
@@ -236,6 +237,7 @@ void run_vert(command* c) {
 				sr2 = 0;
 			}
 		}
+		*/
 		
 		
 	}

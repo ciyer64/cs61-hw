@@ -121,7 +121,7 @@ pid_t start_command(command* c, pid_t pgid) {
     // Your code here!
 	int pipefd[2];
 	int shouldrun=1;
-	command* origC = c;
+	//command* origC = c;
 
 	while(shouldrun==1){
 
@@ -142,12 +142,12 @@ pid_t start_command(command* c, pid_t pgid) {
 		switch (c->pid) {
 			// child process: execute
 			case 0:
-				
+				/*
 				if (c == origC)
 					setpgid(c->pid, c->pid);
 				else
 					setpgid(c->pid, currpgid);
-				
+				*/
 				// handle redirects
 				if (c->in_rd == 1){
 					c->in_rd = open(c->inf, O_RDONLY);
@@ -199,7 +199,7 @@ pid_t start_command(command* c, pid_t pgid) {
 
 			// parent process: do nothing, save child pid
 			default:
-				
+				/*
 				if (c == origC) {
 					setpgid(c->pid, c->pid);
 					currpgid = c->pid;
@@ -208,7 +208,7 @@ pid_t start_command(command* c, pid_t pgid) {
 				}
 				else
 					setpgid(c->pid, currpgid);
-				
+				*/
 				break;
 		}
 		if(c->up == NULL || c->sym != TOKEN_PIPE) {
@@ -250,6 +250,11 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	while (c) {
+		
+		if (c->argv && strcmp("cd", c->argv[0])==0){
+			chdir(c->argv[1]);
+		}
+		
 		if (c->type == TOKEN_BACKGROUND) {
 			pid_t f = fork();
 
@@ -287,17 +292,20 @@ void run_vert(command* c) {
 	int cdr = -2;
 
 	while (c) {
+		if (c->argv && strcmp("cd", c->argv[0])==0){
+			chdir(c->argv[1]);
+		}
 
 		if (shouldrun) {
 			//term_cd(c,&cdr);
-			if(term_cd(c,&cdr) == 0){
+			//if(term_cd(c,&cdr) == 0){
 				pid_t cpr = start_command(c, 0);
 				while(c->sym == TOKEN_PIPE && c->up){
 					c = c->up;
 				}
 				waitpid(cpr, &c->exstat, 0);
 				set_foreground(0);
-			}
+			//}
 			accum = accum_test(accum, prev_sym, c->exstat, cdr);
 		}
 		prev_sym = c->sym;

@@ -184,8 +184,10 @@ pid_t start_command(command* c, pid_t pgid) {
 				}
 				// for reading into pipe:
 				if (c->infd != 0){
-					dup2(c->infd, STDIN_FILENO);
-					close(c->infd);
+					if (c->inf == NULL){
+						dup2(c->infd, STDIN_FILENO);
+						close(c->infd);
+					}
 				}
 
 				execvp(c->argv[0],c->argv);

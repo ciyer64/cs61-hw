@@ -39,6 +39,7 @@ struct command {
 	char* outf;
 	int err_rd;
 	char* errf;
+
 };
 
 void run_vert(command* c);
@@ -49,7 +50,7 @@ int term_cd(command* c, int* cdr);
 command* head;
 //command* tail;
 
-int currpgid = -1;
+//int currpgid = -1;
 
 // command_alloc()
 //    Allocate and return a new command structure.
@@ -117,7 +118,7 @@ static void command_append_arg(command* c, char* word) {
 //       this will require TWO calls to `setpgid`.
 
 pid_t start_command(command* c, pid_t pgid) {
-    (void) pgid;
+    //(void) pgid;
     // Your code here!
 	int pipefd[2];
 	int shouldrun=1;
@@ -142,12 +143,11 @@ pid_t start_command(command* c, pid_t pgid) {
 		switch (c->pid) {
 			// child process: execute
 			case 0:
-				/*
-				if (c == origC)
-					setpgid(c->pid, c->pid);
+				if (pgid == 0)
+					setpgid(0, 0);
 				else
-					setpgid(c->pid, currpgid);
-				*/
+					setpgid(0, pgid);
+
 				// handle redirects
 				if (c->in_rd == 1){
 					c->in_rd = open(c->inf, O_RDONLY);
@@ -201,18 +201,11 @@ pid_t start_command(command* c, pid_t pgid) {
 
 			// parent process: do nothing, save child pid
 			default:
-				/*
-				if (c == origC) {
-					setpgid(c->pid, c->pid);
-					currpgid = c->pid;
-					if (c->up && c->up->sym != TOKEN_BACKGROUND)
-						set_foreground(currpgid);
-				}
-				else
-					setpgid(c->pid, currpgid);
-				*/
+				setpgid(c->pid,pgid);
 				break;
 		}
+		// break if the next command isn't piped 
+		// or if reached end of column
 		if(c->up == NULL || c->sym != TOKEN_PIPE) {
 			shouldrun=0;
 		}
@@ -247,11 +240,12 @@ pid_t start_command(command* c, pid_t pgid) {
 // if the command is not backgrounded, we run the column then proceed
 // if it is backgrounded, we fork:
 // 		-> if it is the child, we run the column then exit
-//		-> if it is the parent, we proceed horizontally
+//		-> if it is the parent, we finished the column, so we proceed horizontally
 //		-> if it is error, just exit
 
 void run_list(command* c) {
 	while (c) {
+		// handle CD in the parent process
 		if (c->argv && strcmp("cd", c->argv[0])==0){
 			chdir(c->argv[1]);
 		}
@@ -293,6 +287,7 @@ void run_vert(command* c) {
 	int cdr = -2;
 
 	while (c) {
+		// handle CD in the child process
 		if (c->argv && strcmp("cd", c->argv[0])==0){
 			chdir(c->argv[1]);
 		}
@@ -302,6 +297,7 @@ void run_vert(command* c) {
 			while(c->sym == TOKEN_PIPE && c->up){
 				c = c->up;
 			}
+			set_foreground(c->pid);
 			waitpid(cpr, &c->exstat, 0);
 			set_foreground(0);
 			accum = accum_test(accum, prev_sym, c->exstat, cdr);

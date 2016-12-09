@@ -50,9 +50,9 @@ struct http_connection {
     int has_content_length; // 1 iff Content-Length was provided
     int eof;                // 1 iff connection EOF has been reached
     char* buf;
-    //char buf[BUFSIZ];       // Response buffer
+    //char buf[BUFSIZ];     // Response buffer
     size_t len;             // Length of response buffer
-    size_t capac;
+    size_t capac;	    // Buffer size to be reupdated
 
     http_connection* next;  // Points to next open connection
 };

@@ -15,16 +15,33 @@ struct command {
     int argc;      // number of arguments
     char** argv;   // arguments, terminated by NULL
     pid_t pid;     // process ID running this command, -1 if none
+
+	// Part 2: Background
 	int type;	   // command type (i.e. background or not)
-	int sym;	   // vert operator (&&, ||, or |)
 	int tag;	   // keeping track of order for debugging
+
+	// Part 3: Command Lists
 	command* next; // next command in list
 	command* prev; // prev command in list
+
+	// Parts 4 & 5: Conditionals & Pipes
+	int sym;	   // vert operator (&&, ||, or |)
 	command* up;   // next command in a "column" (conditional/pipe)
 	command* down; // previous command in a "column" (see above)
+
+	// Part 5: Pipes
 	int infd;	   // file descriptor for infile
 	int outfd;	   // file descriptor for outfile
 	int exstat;	   // exit status of command (for waitpid)
+
+	// Part 7: Redirection
+	//int rdrc;	   // redirect indicator (0 for in, 1 for out, 2 for error) 
+	int in_rd;	   // indicator for in
+	char* inf;
+	int out_rd;	   // indicator for out
+	char* outf;
+	int err_rd;	   // indicator for error
+	char* errf;
 };
 
 void run_vert(command* c);
@@ -59,6 +76,9 @@ static void command_free(command* c) {
     	for (int i = 0; i != c->argc; ++i)
         	free(c->argv[i]);
     	free(c->argv);
+		//free(c->inf);
+		//free(c->outf);
+		//free(c->errf);
 		tmp = c->next;
     	free(c);
 	}
@@ -117,17 +137,46 @@ pid_t start_command(command* c, pid_t pgid) {
 		switch (c->pid) {
 			// child process: execute
 			case 0:
+
+				if (c->in_rd == 1){
+					c->in_rd = open(c->inf, O_RDONLY);
+					if (c->in_rd == -1){
+						fprintf(stderr, "No such file or directory\n");
+						_exit(1);
+					}
+					dup2(c->in_rd, STDIN_FILENO);
+					close(c->in_rd);
+				}
+				if (c->out_rd == 1){
+					c->out_rd = creat(c->outf, S_IRWXU);
+					if (c->out_rd == -1){
+						fprintf(stderr, "No such file or directory\n");
+						_exit(1);
+					}
+					dup2(c->out_rd, STDOUT_FILENO);
+					close(c->out_rd);				
+				}
+				if (c->err_rd == 1){
+					c->err_rd = creat(c->errf, S_IRWXU);
+					if (c->err_rd == -1){
+						fprintf(stderr, "No such file or directory\n");
+						_exit(1);
+					}
+					dup2(c->err_rd, STDERR_FILENO);
+					close(c->err_rd);				
+				}
 				// for writing into pipe:
-				if(c->outfd != 1){
+				if (c->outfd != 1){
 					close(pipefd[0]);
 					dup2(c->outfd, STDOUT_FILENO);
 					close(c->outfd);
 				}
 				// for reading into pipe:
-				if(c->infd != 0){
+				if (c->infd != 0){
 					dup2(c->infd, STDIN_FILENO);
 					close(c->infd);
 				}
+
 				execvp(c->argv[0],c->argv);
 				_exit(1);
 				break;
@@ -321,6 +370,39 @@ void eval_line(const char* s) {
 			curr->sym = type;
 			curr = curr->up;
 		}
+
+		else if (type == TOKEN_REDIRECTION) {
+			int type_rd = 0;
+			// check which redirect
+			if (strcmp("<", token) == 0){
+				curr->in_rd = 1;
+				type_rd = 1;
+			}
+			else if (strcmp(">", token) == 0){
+				curr->out_rd = 1;
+				type_rd = 2;
+			}
+			else if (strcmp("2>", token) == 0){
+				curr->err_rd = 1;
+				type_rd = 3;
+			}
+			// parse the next token (file name)
+			// and save it
+
+			s = parse_shell_token(s, &type, &token);
+
+			switch(type_rd){
+				case 1:
+					curr->inf = token;
+					break;
+				case 2:
+					curr->outf = token;
+					break;
+				case 3:
+					curr->errf = token;
+					break;
+			}
+		}
 		
 
 		// normal: add arguments
@@ -331,7 +413,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    command_free(head);
+    //command_free(head);
 }
 
 

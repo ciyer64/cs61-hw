@@ -54,8 +54,12 @@ command* head;
 // current process group ID
 int currpgid = 0;
 
+// signal tracker
+int sigval = 0;
+
 // signal handler
 void signal_handler(int sig) {
+	sigval = sig;
 	kill(-currpgid, sig);
 }
 
@@ -514,6 +518,9 @@ int main(int argc, char* argv[]) {
 
         // Read a string, checking for error or EOF
         if (fgets(&buf[bufpos], BUFSIZ - bufpos, command_file) == NULL) {
+			if (sigval == SIGINT){
+				sigval = 0;
+			}
             if (ferror(command_file) && errno == EINTR) {
                 // ignore EINTR errors
                 clearerr(command_file);

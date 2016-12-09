@@ -42,15 +42,24 @@ struct command {
 
 };
 
+// initialized helper functions
 void run_vert(command* c);
 int accum_test(int acc, int ctype, int status, int cdr);
 int should_run_proc(int acc, int ctype);
 int term_cd(command* c, int* cdr);
 
+// initialize global head
 command* head;
-//command* tail;
 
-//int currpgid = -1;
+// current process group ID
+int currpgid = 0;
+
+// signal handler
+void signal_handler(int sig) {
+	kill(-currpgid, sig);
+}
+
+
 
 // command_alloc()
 //    Allocate and return a new command structure.
@@ -222,7 +231,10 @@ pid_t start_command(command* c, pid_t pgid) {
 
 			// parent process: do nothing, save child pid
 			default:
-				setpgid(c->pid,pgid);
+				if (pgid == 0)
+					setpgid(c->pid, c->pid);
+				else
+					setpgid(c->pid, pgid);
 				break;
 		}
 		// break if the next command isn't piped 
@@ -258,11 +270,14 @@ pid_t start_command(command* c, pid_t pgid) {
 //       - Cancel the list when you detect interruption.
 
 // FUNCTION SUMMARY:
-// if the command is not backgrounded, we run the column then proceed
+// first check if there is a CD and respond accordingly in parent process
+// next check if the command is in the background.
+// if the command is not background, we run the column then proceed
 // if it is backgrounded, we fork:
-// 		-> if it is the child, we run the column then exit
-//		-> if it is the parent, we finished the column, so we proceed horizontally
-//		-> if it is error, just exit
+// 		-> if we are the child (=0), we run the column then exit
+//		-> if we are the parent (>0), we finished the column, 
+//		   so we proceed horizontally
+//		-> if an error occurs (<0), just exit
 
 void run_list(command* c) {
 	while (c) {
@@ -314,12 +329,15 @@ void run_vert(command* c) {
 		}
 
 		if (shouldrun) {
-			pid_t cpr = start_command(c, 0);
+			pid_t cpr = start_command(c, currpgid);
 			while(c->sym == TOKEN_PIPE && c->up){
 				c = c->up;
 			}
-			set_foreground(c->pid);
+			set_foreground(currpgid);
 			waitpid(cpr, &c->exstat, 0);
+			if (WIFSIGNALED(c->exstat) != 0 && WTERMSIG(c->exstat) == SIGINT) {
+				kill(-currpgid, SIGINT);			
+			}
 			set_foreground(0);
 			accum = accum_test(accum, prev_sym, c->exstat, cdr);
 		}
@@ -347,7 +365,7 @@ int accum_test(int acc, int ctype, int status, int cdr) {
 }
 
 // should_run_proc(acc, ctype)
-// determines whether to run a process based on conditionals:
+// Determines whether to run a process based on conditionals:
 // Run (return 1) if:
 //		-> token is AND and prev process worked, or
 //		-> token is OR and prev process didn't work
@@ -356,7 +374,6 @@ int accum_test(int acc, int ctype, int status, int cdr) {
 //		-> token is OR and prev process worked
 
 int should_run_proc(int acc, int ctype) {
-
 	if (((ctype == TOKEN_AND) && (acc != 0)) || 
 		((ctype == TOKEN_OR) && (acc == 0)))
 		return 1;
@@ -481,6 +498,7 @@ int main(int argc, char* argv[]) {
     //   into the foreground
     set_foreground(0);
     handle_signal(SIGTTOU, SIG_IGN);
+	handle_signal(SIGINT, signal_handler);
 
     char buf[BUFSIZ];
     int bufpos = 0;

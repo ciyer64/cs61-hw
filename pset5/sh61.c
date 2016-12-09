@@ -74,17 +74,38 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
-	command* tmp = c;
-	while (tmp){
-		c = tmp;
-    	for (int i = 0; i != c->argc; ++i)
-        	free(c->argv[i]);
-    	free(c->argv);
+	//command* tmp = c;
+	//while (tmp){
+		//c = tmp;
+    for (int i = 0; i != c->argc; ++i)
+		free(c->argv[i]);
+    free(c->argv);
 		//free(c->inf);
 		//free(c->outf);
 		//free(c->errf);
-		tmp = c->next;
-    	free(c);
+		//tmp = c->next;
+    free(c);
+	//}
+}
+
+// list_free(c)
+//		Free list starting with c as its head.
+
+void list_free(command* c) {
+	command* nbtm;
+	command* rcm;
+	while(c){
+		if(c->up){
+			nbtm = nbtm->up;
+			while(nbtm){
+				rcm = nbtm;
+				nbtm = nbtm->up;
+				command_free(rcm);
+			}
+		}
+		rcm = c;
+		c = c->next;
+		command_free(rcm);
 	}
 }
 
@@ -122,7 +143,7 @@ pid_t start_command(command* c, pid_t pgid) {
     // Your code here!
 	int pipefd[2];
 	int shouldrun=1;
-	//command* origC = c;
+
 
 	while(shouldrun==1){
 
@@ -325,39 +346,27 @@ int accum_test(int acc, int ctype, int status, int cdr) {
 	return -1;
 }
 
-int should_run_proc(int acc, int ctype) {
-	// if prev process worked, run stuff after AND
-	if ((ctype == TOKEN_AND) && (acc != 0))
-		return 1;
-	// if prev process didn't work, don't run stuff after AND
-	else if ((ctype == TOKEN_AND) && (acc == 0))
-		return 0;
-	// if prev process worked, don't run stuff after OR
-	else if ((ctype == TOKEN_OR) && (acc != 0))
-		return 0;
-	// if prev process didn't work, run stuff after OR
-	else if ((ctype == TOKEN_OR) && (acc == 0))
-		return 1;
-	else
-		return -1;
-}
+// should_run_proc(acc, ctype)
+// determines whether to run a process based on conditionals:
+// Run (return 1) if:
+//		-> token is AND and prev process worked, or
+//		-> token is OR and prev process didn't work
+// Don't run (return 0) if:
+//		-> token is OR and prev process didn't work, or
+//		-> token is OR and prev process worked
 
-int term_cd(command* c, int* cdr){
-	if((strcmp("quit", c->argv[0]) == 0) || (strcmp("exit", c->argv[0]) == 0)){
-		_exit(1);
-		return -1;
-	}
-	if(strcmp("secret", c->argv[0]) == 0){
-		_exit(1);
-		return -1;
-	}
-	if(strcmp("cd", c->argv[0]) == 0){
-		*cdr = chdir(c->argv[1]);
-		c->exstat = 0;
+int should_run_proc(int acc, int ctype) {
+
+	if (((ctype == TOKEN_AND) && (acc != 0)) || 
+		((ctype == TOKEN_OR) && (acc == 0)))
 		return 1;
-	}
-	else
+
+	else if (((ctype == TOKEN_AND) && (acc == 0)) ||
+		((ctype == TOKEN_OR) && (acc != 0)))
 		return 0;
+
+	else
+		return -1;
 }
 
 
@@ -374,6 +383,7 @@ void eval_line(const char* s) {
 	head = command_alloc();
 	// cursor used for traversing & building
 	command* curr = head;
+	// cursor for bottom (impt for backgrounding)
 	command* bottom = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
 
@@ -443,7 +453,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    //command_free(head);
+    command_free(head);
 }
 
 

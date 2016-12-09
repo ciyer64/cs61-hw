@@ -250,7 +250,6 @@ pid_t start_command(command* c, pid_t pgid) {
 
 void run_list(command* c) {
 	while (c) {
-		
 		if (c->argv && strcmp("cd", c->argv[0])==0){
 			chdir(c->argv[1]);
 		}
@@ -297,15 +296,12 @@ void run_vert(command* c) {
 		}
 
 		if (shouldrun) {
-			//term_cd(c,&cdr);
-			//if(term_cd(c,&cdr) == 0){
-				pid_t cpr = start_command(c, 0);
-				while(c->sym == TOKEN_PIPE && c->up){
-					c = c->up;
-				}
-				waitpid(cpr, &c->exstat, 0);
-				set_foreground(0);
-			//}
+			pid_t cpr = start_command(c, 0);
+			while(c->sym == TOKEN_PIPE && c->up){
+				c = c->up;
+			}
+			waitpid(cpr, &c->exstat, 0);
+			set_foreground(0);
 			accum = accum_test(accum, prev_sym, c->exstat, cdr);
 		}
 		prev_sym = c->sym;

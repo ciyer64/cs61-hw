@@ -45,7 +45,7 @@ struct command {
 };
 
 void run_vert(command* c);
-int accum_test(int acc, int ctype, int status);
+int accum_test(int acc, int ctype, int status, int cdr);
 int should_run_proc(int acc, int ctype);
 
 command* head;
@@ -62,6 +62,9 @@ static command* command_alloc(void) {
 	c->tag = 0;
 	c->infd = 0;
 	c->outfd = 1;
+	c->inf = NULL;
+	c->outf = NULL;
+	c->errf = NULL;
     return c;
 }
 
@@ -138,6 +141,7 @@ pid_t start_command(command* c, pid_t pgid) {
 			// child process: execute
 			case 0:
 
+				// handle redirects
 				if (c->in_rd == 1){
 					c->in_rd = open(c->inf, O_RDONLY);
 					if (c->in_rd == -1){
@@ -257,50 +261,39 @@ void run_list(command* c) {
     //fprintf(stderr, "run_command not done yet\n");
 }
 
+// run_vert(c)
+// Run a vertical column of commands (i.e. pipes and/or conditionals)
 void run_vert(command* c) {
 	int shouldrun = 1;
 	int accum = 1;
-
 	int prev_sym = -2;
+	int cdr = -2;
 	//command* pfin;
 
 	while (c) {
 
-		//pfin = c;
-
 		if (shouldrun) {
+			//if(term_cd(c,&cdr) == 0){
 			pid_t cpr = start_command(c, 0);
-			//while(pfin->sym == TOKEN_PIPE && pfin->up){
-				//pfin = pfin->up;
 			while(c->sym == TOKEN_PIPE && c->up){
 				c = c->up;
 			}
 			waitpid(cpr, &c->exstat, 0);
-			accum = accum_test(accum, prev_sym, c->exstat);
+			//}
+			accum = accum_test(accum, prev_sym, c->exstat, cdr);
 		}
-		//prev_log = c->ctype;
 		prev_sym = c->sym;
 		shouldrun = should_run_proc(accum, prev_sym);
-		c = c->up;
-		/*
-		int sr2=1;
-		while(sr2){
-			c = c->up;
-			if(!c)
-				return;
-			if(c->down == NULL || c->down->sym != TOKEN_PIPE) {
-				sr2 = 0;
-			}
-		}
-		*/
-		
-		
+		c = c->up;		
 	}
 }
 
-int accum_test(int acc, int ctype, int status) {
+int accum_test(int acc, int ctype, int status, int cdr) {
+	// redirect or CD failed
+	if (errno != 0 || cdr == -1)
+		return 0;
 	// first command
-	if (ctype == -2)
+	else if (ctype == -2)
 		return (WEXITSTATUS(status) == 0);
 	// command joined by an AND
 	else if (ctype == TOKEN_AND)
@@ -309,8 +302,7 @@ int accum_test(int acc, int ctype, int status) {
 	else if (ctype == TOKEN_OR)
 		return (acc || (WEXITSTATUS(status) == 0));
 	// error case
-	else
-		return -1;
+	return -1;
 }
 
 int should_run_proc(int acc, int ctype) {
@@ -328,6 +320,20 @@ int should_run_proc(int acc, int ctype) {
 		return 1;
 	else
 		return -1;
+}
+
+int term_cd(command* c, int* cdr){
+	if(strcmp("quit",c->argv[0])==0 || strcmp("exit", c->argv[0])==0){
+		_exit(1);
+		return -1;
+	}
+	if(strcmp("cd",c->argv[0])==0){
+		*cdr = chdir(c->argv[1]);
+		c->exstat = 0;
+		return 1;
+	}
+	else
+		return 0;
 }
 
 

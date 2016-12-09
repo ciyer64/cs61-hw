@@ -4,9 +4,6 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
-#define TRUE 1
-#define FALSE 0
-
 // struct command
 //    Data structure describing a command. Add your own stuff.
 
@@ -21,11 +18,11 @@ struct command {
 	int tag;	   // keeping track of order for debugging
 
 	// Part 3: Command Lists
-	command* next; // next command in list
-	command* prev; // prev command in list
+	command* next; // next command
+	command* prev; // prev command
 
-	// Parts 4 & 5: Conditionals & Pipes
-	int sym;	   // vert operator (&&, ||, or |)
+	// Part 4: Conditionals, and Part 5: Pipes
+	int sym;	   // vertical operator (&&, ||, or |)
 	command* up;   // next command in a "column" (conditional/pipe)
 	command* down; // previous command in a "column" (see above)
 
@@ -35,21 +32,24 @@ struct command {
 	int exstat;	   // exit status of command (for waitpid)
 
 	// Part 7: Redirection
-	//int rdrc;	   // redirect indicator (0 for in, 1 for out, 2 for error) 
-	int in_rd;	   // indicator for in
+	// for each case (in, out, error), save descriptor and file
+	int in_rd;
 	char* inf;
-	int out_rd;	   // indicator for out
+	int out_rd;
 	char* outf;
-	int err_rd;	   // indicator for error
+	int err_rd;
 	char* errf;
 };
 
 void run_vert(command* c);
 int accum_test(int acc, int ctype, int status, int cdr);
 int should_run_proc(int acc, int ctype);
+int term_cd(command* c, int* cdr);
 
 command* head;
 //command* tail;
+
+int currpgid = -1;
 
 // command_alloc()
 //    Allocate and return a new command structure.
@@ -121,6 +121,8 @@ pid_t start_command(command* c, pid_t pgid) {
     // Your code here!
 	int pipefd[2];
 	int shouldrun=1;
+	command* origC = c;
+
 	while(shouldrun==1){
 
 		if (c->infd != 0) {
@@ -140,7 +142,12 @@ pid_t start_command(command* c, pid_t pgid) {
 		switch (c->pid) {
 			// child process: execute
 			case 0:
-
+				
+				if (c == origC)
+					setpgid(c->pid, c->pid);
+				else
+					setpgid(c->pid, currpgid);
+				
 				// handle redirects
 				if (c->in_rd == 1){
 					c->in_rd = open(c->inf, O_RDONLY);
@@ -192,6 +199,16 @@ pid_t start_command(command* c, pid_t pgid) {
 
 			// parent process: do nothing, save child pid
 			default:
+				
+				if (c == origC) {
+					setpgid(c->pid, c->pid);
+					currpgid = c->pid;
+					if (c->up && c->up->sym != TOKEN_BACKGROUND)
+						set_foreground(currpgid);
+				}
+				else
+					setpgid(c->pid, currpgid);
+				
 				break;
 		}
 		if(c->up == NULL || c->sym != TOKEN_PIPE) {
@@ -268,18 +285,19 @@ void run_vert(command* c) {
 	int accum = 1;
 	int prev_sym = -2;
 	int cdr = -2;
-	//command* pfin;
 
 	while (c) {
 
 		if (shouldrun) {
-			//if(term_cd(c,&cdr) == 0){
-			pid_t cpr = start_command(c, 0);
-			while(c->sym == TOKEN_PIPE && c->up){
-				c = c->up;
+			//term_cd(c,&cdr);
+			if(term_cd(c,&cdr) == 0){
+				pid_t cpr = start_command(c, 0);
+				while(c->sym == TOKEN_PIPE && c->up){
+					c = c->up;
+				}
+				waitpid(cpr, &c->exstat, 0);
+				set_foreground(0);
 			}
-			waitpid(cpr, &c->exstat, 0);
-			//}
 			accum = accum_test(accum, prev_sym, c->exstat, cdr);
 		}
 		prev_sym = c->sym;
@@ -323,11 +341,15 @@ int should_run_proc(int acc, int ctype) {
 }
 
 int term_cd(command* c, int* cdr){
-	if(strcmp("quit",c->argv[0])==0 || strcmp("exit", c->argv[0])==0){
+	if((strcmp("quit", c->argv[0]) == 0) || (strcmp("exit", c->argv[0]) == 0)){
 		_exit(1);
 		return -1;
 	}
-	if(strcmp("cd",c->argv[0])==0){
+	if(strcmp("secret", c->argv[0]) == 0){
+		_exit(1);
+		return -1;
+	}
+	if(strcmp("cd", c->argv[0]) == 0){
 		*cdr = chdir(c->argv[1]);
 		c->exstat = 0;
 		return 1;

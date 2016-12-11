@@ -87,38 +87,31 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
-	//command* tmp = c;
-	//while (tmp){
-		//c = tmp;
     for (int i = 0; i != c->argc; ++i)
 		free(c->argv[i]);
     free(c->argv);
-		//free(c->inf);
-		//free(c->outf);
-		//free(c->errf);
-		//tmp = c->next;
     free(c);
-	//}
 }
 
 // list_free(c)
-//		Free list starting with c as its head.
+//		Free list starting with c as its head, calling
+//		command_free on each node
 
 void list_free(command* c) {
-	command* nbtm;
-	command* rcm;
+	command* b;
+	command* f;
 	while(c){
 		if(c->up){
-			nbtm = nbtm->up;
-			while(nbtm){
-				rcm = nbtm;
-				nbtm = nbtm->up;
-				command_free(rcm);
+			b = b->up;
+			while(b){
+				f = b;
+				b = b->up;
+				command_free(f);
 			}
 		}
-		rcm = c;
+		f = c;
 		c = c->next;
-		command_free(rcm);
+		command_free(f);
 	}
 }
 

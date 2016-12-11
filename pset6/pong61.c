@@ -49,11 +49,10 @@ struct http_connection {
     size_t content_length;  // Content-Length value
     int has_content_length; // 1 iff Content-Length was provided
     int eof;                // 1 iff connection EOF has been reached
-    char* buf;
     //char buf[BUFSIZ];     // Response buffer
+    char* buf;				// Removed fixed size to enable dynamic reallocation
     size_t len;             // Length of response buffer
-    size_t capac;	    	// Buffer size to be reupdated for Phase 5
-
+    size_t capac;			// Stored value for buffer size to be updated for Phase 5
     http_connection* next;  // Points to next open connection for Phase 3's linked list
 };
 
@@ -105,7 +104,7 @@ http_connection* http_connect(const struct addrinfo* ai) {
     conn->state = HTTP_REQUEST;
     conn->eof = 0;
     conn->buf = malloc(BUFSIZ);
-    conn->capac = BUFSIZ;			// Set this for Phase 5
+    conn->capac = BUFSIZ;	// Set this for Phase 5
     return conn;
 }
 
@@ -172,23 +171,25 @@ void http_receive_response_headers(http_connection* conn) {
     if (conn->state < 0) {
 		return;
     }
- 
     // read & parse data until told `http_process_response_headers`
     // tells us to stop
+	// Phase 5:
+	// Check if length exceeds buffer capacity and update accordingly
+	// Only have to read the difference between the length and the capacity
     while (http_process_response_headers(conn)) {
         if (conn->len >= conn->capac) {
 	    conn->capac *= 2;
 	    conn->buf = realloc(conn->buf, conn->capac);
-	}
+		}
 
-	ssize_t nr = read(conn->fd, &conn->buf[conn->len], conn->capac - conn->len);
-	if (nr == 0)
+		ssize_t nr = read(conn->fd, &conn->buf[conn->len], conn->capac - conn->len);
+		if (nr == 0)
             conn->eof = 1;
-	else if (nr == -1 && errno != EINTR && errno != EAGAIN) {
-	    perror("read");
+		else if (nr == -1 && errno != EINTR && errno != EAGAIN) {
+	    	perror("read");
             exit(1);
-	} 
-	else if (nr != -1)
+		} 
+		else if (nr != -1)
             conn->len += nr;
     }
 
@@ -281,9 +282,11 @@ void* pong_thread(void* threadarg) {
              pa.x, pa.y);
     http_connection* conn;
     
-    // Traverse the linked list to check for existing connection
+	// Phase 3:
+    // Check if valid connection in linked list to pull from
 	// but lock thread first so linked list isn't edited by two
 	// threads concurrently
+	// Otherwise call new connection
     pthread_mutex_lock(&mutex); 
     if (head){
         conn = head;
@@ -298,16 +301,17 @@ void* pong_thread(void* threadarg) {
     http_receive_response_headers(conn);
     count += conn->content_length;
 
-
+	// Phase 1: 
     // Attempt to reconnect to the server if the connection is dropped
-	// but use logarithmic pauses
+	// using exponential backoff
     int pause = 10000;
     while (conn->state == HTTP_BROKEN) {
 		http_close(conn);
 		usleep(pause);
 		pause = 2*pause;
 
-		// Use linked list again before opening a new connection
+		// Try to pull new connection from linked list like above
+		// Otherwise call new connection
 		pthread_mutex_lock(&mutex);
 		if (head){
        	    conn = head;
@@ -329,15 +333,17 @@ void* pong_thread(void* threadarg) {
                 "server returned status %d (expected 200)\n",
                 elapsed(), pa.x, pa.y, conn->status_code);
 	*/
-    
 
+	// Phase 2:
     // Go ahead and signal main thread to continue, regardless
     // of state of receiving body
     pthread_cond_signal(&condvar);
 
     http_receive_response_body(conn);
     double result = strtod(conn->buf, NULL);
-    // `Pause` thread for the amount of time requested by server
+
+	// Phase 4:
+    // Handle congestion by waiting for the time dictated by the request
     if (result > 0) {
 		pthread_mutex_lock(&mutex);
 		usleep(result*1000);
@@ -349,7 +355,9 @@ void* pong_thread(void* threadarg) {
         exit(1);
     }
 
-	// Add connections to our linked list if they are no longer needed
+	// Phase 3:
+	// Add connection to the linked list if their state is HTTP_DONE
+	// Otherwise close it
     if (conn->state == HTTP_DONE) {
 		pthread_mutex_lock(&mutex);
 		conn->next = head;
@@ -357,9 +365,7 @@ void* pong_thread(void* threadarg) {
 		pthread_mutex_unlock(&mutex);
     }
     else
-		http_close(conn);		// This condition is probably unnecessary but
-								// helps make sure we don't add a faulty connection
-								// to the list
+		http_close(conn);
     
     // exit
     pthread_exit(NULL);

@@ -87,6 +87,9 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
+	if (c->up)
+		command_free(c->up);
+
     for (int i = 0; i != c->argc; ++i)
 		free(c->argv[i]);
     free(c->argv);
@@ -473,7 +476,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    list_free(head);
+    command_free(head);
 }
 
 

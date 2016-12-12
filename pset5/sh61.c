@@ -87,13 +87,17 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
-	if (c->up)
-		command_free(c->up);
+
+
+	
+	//if (c->up)
+	//	command_free(c->up);
 
     for (int i = 0; i != c->argc; ++i)
 		free(c->argv[i]);
     free(c->argv);
     free(c);
+
 }
 
 // list_free(c)
@@ -102,11 +106,45 @@ static void command_free(command* c) {
 //		Uses two temporary node pointers:
 //		one for bottom and one for node to be freed.
 
-void list_free(command* c) {
+void list_free() {
+
+
+	command *to_free;
+	command *new_bottom;
+
+	while(head){
+		if(head->up){
+			new_bottom = head->up;
+			while(new_bottom){
+				to_free = new_bottom;
+				new_bottom = new_bottom->up
+				command_free(to_free);
+			}
+		}
+
+		to_free = head;
+		head = head->next;
+		command_free(to_free);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	/*
 	command* nbot;
 	command* nfree;
 	while(c){
-		/*
+	
 		if(c->up){
 			nbot = c->up;
 			while(nbot){
@@ -116,12 +154,13 @@ void list_free(command* c) {
 				command_free(nfree);
 			}
 		}
-		*/
+	
 		nfree = c;
 		if (c->next)
 			c = c->next;
 		command_free(nfree);
 	}
+	*/
 }
 
 
@@ -476,7 +515,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    command_free(head);
+    list_free();
 }
 
 

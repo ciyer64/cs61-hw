@@ -89,8 +89,8 @@ static command* command_alloc(void) {
 static void command_free(command* c) {
 
 	
-	//if (c->up)
-	//	command_free(c->up);
+	if (c->up)
+		command_free(c->up);
 
     for (int i = 0; i != c->argc; ++i)
 		free(c->argv[i]);
@@ -124,41 +124,6 @@ void list_free() {
 		head = head->next;
 		command_free(to_free);
 	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	/*
-	command* nbot;
-	command* nfree;
-	while(c){
-	
-		if(c->up){
-			nbot = c->up;
-			while(nbot){
-				nfree = nbot;
-				if (nbot->up)
-					nbot = nbot->up;
-				command_free(nfree);
-			}
-		}
-	
-		nfree = c;
-		if (c->next)
-			c = c->next;
-		command_free(nfree);
-	}
-	*/
 }
 
 
@@ -513,7 +478,8 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    list_free();
+    //list_free();
+	command_free(head);
 }
 
 

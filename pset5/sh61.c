@@ -115,7 +115,7 @@ void list_free(command* c) {
 		nfree = c;
 		if (c->next)
 			c = c->next;
-		command_free(nfree);
+		//command_free(nfree);
 	}
 }
 

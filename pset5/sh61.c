@@ -103,6 +103,7 @@ void list_free(command* c) {
 	command* nbot;
 	command* nfree;
 	while(c){
+		/*
 		if(c->up){
 			nbot = c->up;
 			while(nbot){
@@ -112,10 +113,11 @@ void list_free(command* c) {
 				command_free(nfree);
 			}
 		}
+		*/
 		nfree = c;
 		if (c->next)
 			c = c->next;
-		//command_free(nfree);
+		command_free(nfree);
 	}
 }
 

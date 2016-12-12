@@ -88,7 +88,6 @@ static command* command_alloc(void) {
 
 static void command_free(command* c) {
 
-
 	
 	//if (c->up)
 	//	command_free(c->up);
@@ -108,7 +107,6 @@ static void command_free(command* c) {
 
 void list_free() {
 
-
 	command *to_free;
 	command *new_bottom;
 
@@ -117,7 +115,7 @@ void list_free() {
 			new_bottom = head->up;
 			while(new_bottom){
 				to_free = new_bottom;
-				new_bottom = new_bottom->up
+				new_bottom = new_bottom->up;
 				command_free(to_free);
 			}
 		}

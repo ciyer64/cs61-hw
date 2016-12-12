@@ -33,11 +33,11 @@ struct command {
 
 	// Part 7: Redirection
 	// for each case (in, out, error), save descriptor and file
-	int in_rd;	   // in
+	int in_rd;
 	char* inf;
-	int out_rd;	   // out
+	int out_rd;
 	char* outf;
-	int err_rd;	   // error
+	int err_rd;
 	char* errf;
 
 };
@@ -515,7 +515,6 @@ int main(int argc, char* argv[]) {
         if (fgets(&buf[bufpos], BUFSIZ - bufpos, command_file) == NULL) {
 			if (sigval == SIGINT){
 				sigval = 0;
-				printf("\n");
 			}
             if (ferror(command_file) && errno == EINTR) {
                 // ignore EINTR errors

@@ -104,7 +104,7 @@ void list_free(command* c) {
 	command* nfree;
 	while(c){
 		if(c->up){
-			nbot = nbot->up;
+			nbot = c->up;
 			while(nbot){
 				nfree = nbot;
 				if (nbot->up)
@@ -471,7 +471,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    //list_free(head);
+    list_free(head);
 }
 
 

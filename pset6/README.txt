@@ -1,8 +1,5 @@
-<<<<<<< HEAD:pset5/README.txt
-README for CS 61 Problem Set 5
-=======
 README for CS 61 Problem Set 6
->>>>>>> 81aa98cc0c5fb556d26c189cc8bf7daa41bcea63:pset6/README.txt
+
 ------------------------------
 YOU MUST FILL OUT THIS FILE BEFORE SUBMITTING!
 ** DO NOT PUT YOUR NAME OR YOUR PARTNER'S NAME! **
@@ -30,7 +27,7 @@ the current thread ends.
 
 
 OTHER COLLABORATORS AND CITATIONS (if any):
-
+Joseph Kahn
 
 
 KNOWN BUGS (if any):

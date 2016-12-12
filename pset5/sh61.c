@@ -95,7 +95,8 @@ static void command_free(command* c) {
 
 // list_free(c)
 //		Free list starting with c as its head, calling
-//		command_free on each node
+//		command_free on each node.  Uses two temp nodes
+//		b (bottom) and f (node to be freed)
 
 void list_free(command* c) {
 	command* b;
@@ -147,8 +148,9 @@ static void command_append_arg(command* c, char* word) {
 pid_t start_command(command* c, pid_t pgid) {
     //(void) pgid;
     // Your code here!
-	int pipefd[2];
-	int shouldrun=1;
+
+	int pipefd[2];		// array to contain file descriptors for piping
+	int shouldrun=1;	// continue looping while in a pipe
 
 
 	while(shouldrun==1){

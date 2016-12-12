@@ -471,7 +471,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    list_free(head);
+    //list_free(head);
 }
 
 

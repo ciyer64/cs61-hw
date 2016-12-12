@@ -33,11 +33,11 @@ struct command {
 
 	// Part 7: Redirection
 	// for each case (in, out, error), save descriptor and file
-	int in_rd;
+	int in_rd;	   // in
 	char* inf;
-	int out_rd;
+	int out_rd;	   // out
 	char* outf;
-	int err_rd;
+	int err_rd;	   // error
 	char* errf;
 
 };
@@ -87,32 +87,38 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
+	//command* tmp = c;
+	//while (tmp){
+		//c = tmp;
     for (int i = 0; i != c->argc; ++i)
 		free(c->argv[i]);
     free(c->argv);
+		//free(c->inf);
+		//free(c->outf);
+		//free(c->errf);
+		//tmp = c->next;
     free(c);
+	//}
 }
 
 // list_free(c)
-//		Free list starting with c as its head, calling
-//		command_free on each node.  Uses two temp nodes
-//		b (bottom) and f (node to be freed)
+//		Free list starting with c as its head.
 
 void list_free(command* c) {
-	command* b;
-	command* f;
+	command* nbtm;
+	command* rcm;
 	while(c){
 		if(c->up){
-			b = b->up;
-			while(b){
-				f = b;
-				b = b->up;
-				command_free(f);
+			nbtm = nbtm->up;
+			while(nbtm){
+				rcm = nbtm;
+				nbtm = nbtm->up;
+				command_free(rcm);
 			}
 		}
-		f = c;
+		rcm = c;
 		c = c->next;
-		command_free(f);
+		command_free(rcm);
 	}
 }
 
@@ -148,9 +154,8 @@ static void command_append_arg(command* c, char* word) {
 pid_t start_command(command* c, pid_t pgid) {
     //(void) pgid;
     // Your code here!
-
-	int pipefd[2];		// array to contain file descriptors for piping
-	int shouldrun=1;	// continue looping while in a pipe
+	int pipefd[2];
+	int shouldrun=1;
 
 
 	while(shouldrun==1){
@@ -515,6 +520,7 @@ int main(int argc, char* argv[]) {
         if (fgets(&buf[bufpos], BUFSIZ - bufpos, command_file) == NULL) {
 			if (sigval == SIGINT){
 				sigval = 0;
+				printf("\n");
 			}
             if (ferror(command_file) && errno == EINTR) {
                 // ignore EINTR errors
@@ -544,3 +550,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+

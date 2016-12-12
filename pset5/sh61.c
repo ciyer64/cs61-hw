@@ -48,7 +48,7 @@ int accum_test(int acc, int ctype, int status, int cdr);
 int should_run_proc(int acc, int ctype);
 int term_cd(command* c, int* cdr);
 
-// initialize global head and tail
+// initialize global head
 command* head;
 
 // current process group ID
@@ -87,6 +87,7 @@ static command* command_alloc(void) {
 //    Free command structure `c`, including all its words.
 
 static void command_free(command* c) {
+
 	if (c->up)
 		command_free(c->up);
 
@@ -122,6 +123,7 @@ void list_free() {
 		head = head->next;
 		command_free(to_free);
 	}
+
 }
 
 
@@ -403,9 +405,9 @@ void eval_line(const char* s) {
 
 	// build the command
 	// initialize "head"
-	command* curr = command_alloc();
+	head = command_alloc();
 	// cursor used for traversing & building
-	//command* curr = head;
+	command* curr = head;
 	// cursor for bottom (impt for backgrounding)
 	command* bottom = head;
     while ((s = parse_shell_token(s, &type, &token)) != NULL) {
@@ -476,8 +478,7 @@ void eval_line(const char* s) {
     // execute it
 	if (head->argc)
 		run_list(head);
-    //list_free();
-	command_free(head);
+    command_free(head);
 }
 
 
